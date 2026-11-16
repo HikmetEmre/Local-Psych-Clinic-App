@@ -71,3 +71,67 @@ sync_outbox = Table(
     Column("created_at", _tz, nullable=False),
     Column("sent_at", _tz),
 )
+
+age_groups = Table(
+    "age_groups",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("code", Text, nullable=False, unique=True),
+    Column("label_tr", Text, nullable=False),
+    Column("min_age", Integer, nullable=False),
+    Column("max_age", Integer),
+    Column("sort_order", Integer, nullable=False),
+    Column("is_active", Boolean, nullable=False),
+)
+
+therapy_methods = Table(
+    "therapy_methods",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("code", Text, nullable=False, unique=True),
+    Column("label_tr", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("description_tr", Text),
+    Column("is_active", Boolean, nullable=False),
+    Column("created_at", _tz, nullable=False),
+)
+
+age_group_therapy_defaults = Table(
+    "age_group_therapy_defaults",
+    metadata,
+    Column("age_group_id", Integer, ForeignKey("age_groups.id"), primary_key=True),
+    Column("therapy_method_id", Integer, ForeignKey("therapy_methods.id"), primary_key=True),
+    Column("sort_order", Integer, nullable=False),
+)
+
+therapy_sessions = Table(
+    "therapy_sessions",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("client_id", _uuid, ForeignKey("clients.id"), nullable=False),
+    Column("therapist_id", _uuid, ForeignKey("users.id"), nullable=False),
+    Column("age_group_id_at_session", Integer, ForeignKey("age_groups.id"), nullable=False),
+    Column("format_method_id", Integer, ForeignKey("therapy_methods.id"), nullable=False),
+    Column("session_number", Integer, nullable=False),
+    Column("session_date", _tz, nullable=False),
+    Column("duration_min", Integer, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("notes_encrypted", LargeBinary),
+    Column("homework_encrypted", LargeBinary),
+    Column("next_session_date", _tz),
+    Column("appointment_id", _uuid),
+    Column("version", Integer, nullable=False),
+    Column("created_by", _uuid, ForeignKey("users.id")),
+    Column("updated_by", _uuid, ForeignKey("users.id")),
+    Column("created_at", _tz, nullable=False),
+    Column("updated_at", _tz, nullable=False),
+    Column("deleted_at", _tz),
+)
+
+session_methods = Table(
+    "session_methods",
+    metadata,
+    Column("session_id", _uuid, ForeignKey("therapy_sessions.id"), primary_key=True),
+    Column("therapy_method_id", Integer, ForeignKey("therapy_methods.id"), primary_key=True),
+    Column("is_primary", Boolean, nullable=False),
+)

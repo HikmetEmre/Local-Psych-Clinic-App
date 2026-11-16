@@ -217,6 +217,11 @@ class Kasa:
         token = self.csrf if csrf is None else csrf
         return self.client.post(path, data={**(data or {}), "csrf_token": token})
 
+    def api(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        """JSON API call with the CSRF header a browser script would send."""
+        headers = {"X-CSRF-Token": self.csrf, **kwargs.pop("headers", {})}
+        return self.client.request(method, path, headers=headers, **kwargs)
+
     # --- login steps, individually, so tests can break the flow where they need to
 
     def submit_password(self, username: str, password: str) -> httpx.Response:
