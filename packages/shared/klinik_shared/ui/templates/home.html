@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card hero stack">
+  <img class="hero__logo" src="/static/ui/img/logo.jpeg" alt="{{ clinic_name }}" width="1004" height="479">
+  <h1>{{ tier.app_name }}</h1>
+  <p class="muted">{{ tier.tagline }}</p>
+  <p>
+    {% if db == "ok" %}
+    <span class="badge badge--ok">Veritabanı bağlı</span>
+    {% elif db == "down" %}
+    <span class="badge badge--down">Veritabanına ulaşılamıyor</span>
+    {% else %}
+    <span class="badge">Veritabanı yapılandırılmadı</span>
+    {% endif %}
+  </p>
+</section>
+{% endblock %}

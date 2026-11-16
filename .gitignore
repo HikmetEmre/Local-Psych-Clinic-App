@@ -1,0 +1,31 @@
+# secrets: never commit real env files or keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# local data
+backups/
+*.dump
+*.age
+
+# editors / OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

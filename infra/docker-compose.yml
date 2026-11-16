@@ -1,0 +1,81 @@
+# LOCAL TIER ("Klinik Kasa"): what runs on the office laptop.
+#
+#   docker compose --env-file .env -f infra/docker-compose.yml up -d --build
+#
+# Security rules encoded here (brief §11):
+#   - local-db publishes NO port: it is reachable only inside the compose network.
+#   - local-app binds to 127.0.0.1 only; `tailscale serve` on the host fronts it with HTTPS.
+#   - the sync worker only makes outbound connections.
+# The nightly `backup` service is added in M8.
+
+name: klinik
+
+x-app-build: &app-build
+  context: ..
+  dockerfile: infra/Dockerfile
+
+x-healthcheck: &http-healthcheck
+  test:
+    - CMD
+    - python
+    - -c
+    - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 10s
+
+services:
+  local-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kasa
+      POSTGRES_USER: kasa_migrator
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?set LOCAL_DB_PASSWORD in the env file}
+    volumes:
+      - local-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kasa_migrator -d kasa"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  local-migrate:
+    build:
+      <<: *app-build
+      args: { APP: local }
+    restart: "no"
+    command: ["alembic", "-n", "local", "upgrade", "head"]
+    environment:
+      LOCAL_MIGRATION_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+    depends_on:
+      local-db: { condition: service_healthy }
+
+  local-app:
+    build:
+      <<: *app-build
+      args: { APP: local }
+    restart: unless-stopped
+    environment:
+      LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+    ports:
+      - "127.0.0.1:8002:8000"
+    depends_on:
+      local-migrate: { condition: service_completed_successfully }
+    healthcheck: *http-healthcheck
+
+  sync-worker:
+    build:
+      <<: *app-build
+      args: { APP: sync }
+    restart: unless-stopped
+    environment:
+      SYNC_LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+      SYNC_CLOUD_BASE_URL: ${SYNC_CLOUD_BASE_URL:?set SYNC_CLOUD_BASE_URL in the env file}
+    depends_on:
+      local-migrate: { condition: service_completed_successfully }
+    healthcheck: *http-healthcheck
+
+volumes:
+  local-db-data:

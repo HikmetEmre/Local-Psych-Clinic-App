@@ -1,0 +1,67 @@
+# DEVELOPMENT / CI override: adds a stand-in cloud tier next to the local one.
+#
+#   docker compose --env-file infra/dev.env -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up -d --build --wait
+#
+#   Klinik Web  (cloud) http://127.0.0.1:8001
+#   Klinik Kasa (local) http://127.0.0.1:8002
+#   Sync worker health  http://127.0.0.1:8003/healthz
+#
+# In production the cloud tier runs on Cloud Run + Supabase, not in this file.
+
+services:
+  cloud-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: klinik_cloud
+      POSTGRES_USER: cloud_migrator
+      POSTGRES_PASSWORD: ${CLOUD_DB_PASSWORD:?}
+    volumes:
+      - cloud-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloud_migrator -d klinik_cloud"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  cloud-migrate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args: { APP: cloud }
+    restart: "no"
+    command: ["alembic", "-n", "cloud", "upgrade", "head"]
+    environment:
+      CLOUD_MIGRATION_DATABASE_URL: postgresql+asyncpg://cloud_migrator:${CLOUD_DB_PASSWORD}@cloud-db:5432/klinik_cloud
+    depends_on:
+      cloud-db: { condition: service_healthy }
+
+  cloud-app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args: { APP: cloud }
+    environment:
+      CLOUD_DATABASE_URL: postgresql+asyncpg://cloud_migrator:${CLOUD_DB_PASSWORD}@cloud-db:5432/klinik_cloud
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      cloud-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  sync-worker:
+    ports:
+      - "127.0.0.1:8003:8000"
+    depends_on:
+      cloud-app: { condition: service_healthy }
+
+volumes:
+  cloud-db-data:

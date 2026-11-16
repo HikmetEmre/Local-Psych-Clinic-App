@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#356650">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ tier.app_name }}{% endblock %} · {{ clinic_name }}</title>
+  <link rel="icon" href="/static/ui/img/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/static/ui/css/klinik.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="/">
+        <img class="brand__mark" src="/static/ui/img/mark-96.png" alt="" width="44" height="44">
+        <span class="brand__name">{{ clinic_name }}
+          <span class="brand__app">{{ tier.app_name }}</span>
+        </span>
+      </a>
+      <span class="tier-badge">{{ tier.badge }}</span>
+      {% block header_actions %}{% endblock %}
+    </div>
+  </header>
+  {% if nav %}
+  <nav class="tabs" aria-label="Sekmeler">
+    <div class="tabs__inner">
+      {% for item in nav %}
+      <a href="{{ item.href }}"{% if request.url.path.startswith(item.href) %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      {% endfor %}
+    </div>
+  </nav>
+  {% endif %}
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">{{ clinic_name }} · {{ tier.app_name }}</footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
