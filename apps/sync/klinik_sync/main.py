@@ -1,3 +1,5 @@
+"""Sync worker app factory. Run with: uvicorn klinik_sync.main:create_app --factory"""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -17,6 +19,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     # No UI: this process only exposes /healthz. Pull/push loops arrive in M5.
     return create_base_app(tier=TIER, database_url=settings.local_database_url, with_ui=False)
-
-
-app = create_app()

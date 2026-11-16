@@ -64,3 +64,19 @@ def fresh_database(postgres_server: str) -> Iterator[str]:
         yield f"{postgres_server}/{name}"
     finally:
         asyncio.run(run(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _fast_bcrypt() -> None:
+    """Cost factor 4 instead of 12: these tests hash dozens of passwords."""
+    from klinik_shared.authkit import passwords
+
+    passwords.set_rounds(4)
+
+
+@pytest.fixture
+def local_db(fresh_database: str) -> object:
+    """A migrated local-tier database with the app and sync roles ready to log in."""
+    from support.local import prepare_local_db
+
+    return prepare_local_db(fresh_database)

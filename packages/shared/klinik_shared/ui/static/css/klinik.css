@@ -136,8 +136,11 @@ a:hover {
   color: var(--text-muted);
 }
 
+.site-header__inner > .tier-badge {
+  margin-right: auto;
+}
+
 .tier-badge {
-  margin-left: auto;
   font-size: 0.75rem;
   padding: 3px 10px;
   border-radius: 999px;
@@ -432,4 +435,209 @@ tbody tr:last-child td {
   .card { padding: 16px; }
   h1 { font-size: 1.4rem; }
   .brand__name { font-size: 0.82rem; }
+}
+
+/* ---------- auth pages, user menu, small helpers ---------- */
+
+.page--narrow {
+  max-width: 460px;
+}
+
+.auth-card {
+  padding: 28px 24px;
+}
+
+.auth-card__logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto 4px;
+}
+
+.auth-card h1 {
+  text-align: center;
+}
+
+.btn--block {
+  width: 100%;
+  justify-content: center;
+}
+
+.btn--small {
+  padding: 5px 11px;
+  font-size: 0.85rem;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-menu form {
+  margin: 0;
+}
+
+.user-menu__name {
+  color: var(--brown-800);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.steps {
+  padding-left: 1.2em;
+  margin: 0;
+}
+
+.steps li + li {
+  margin-top: 6px;
+}
+
+.qr {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.qr svg {
+  max-width: 240px;
+  height: auto;
+}
+
+code,
+.secret {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  background: var(--beige-100);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.code-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.code-list code {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  font-size: 1rem;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-head h1 {
+  margin: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 18px;
+}
+
+.form-grid .field + .field {
+  margin-top: 0;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.filters .field {
+  flex: 1 1 200px;
+}
+
+.filters .field + .field {
+  margin-top: 0;
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 32px 16px;
+}
+
+td.wrap,
+th.wrap {
+  white-space: normal;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 4px 14px;
+}
+
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  margin: 0;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.tile {
+  display: block;
+  text-decoration: none;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  color: var(--text);
+}
+
+.tile:hover {
+  border-color: var(--green-500);
+  background: var(--green-50);
+  color: var(--text);
+}
+
+.tile strong {
+  display: block;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: var(--green-800);
+}
+
+@media (max-width: 640px) {
+  .tier-badge { display: none; }
+  .user-menu { margin-left: auto; }
 }

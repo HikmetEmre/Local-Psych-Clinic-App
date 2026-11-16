@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Danışanlar{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Danışanlar</h1>
+  {% if can_write %}<a class="btn" href="/danisanlar/yeni">+ Yeni Danışan</a>{% endif %}
+</div>
+
+<form class="filters" method="get" action="/danisanlar">
+  <div class="field">
+    <label for="q">Ara</label>
+    <input id="q" name="q" type="search" value="{{ q }}" placeholder="Danışan kodu veya ad">
+  </div>
+  <div class="field">
+    <label for="durum">Durum</label>
+    <select id="durum" name="durum">
+      <option value="aktif"{% if durum == "aktif" %} selected{% endif %}>Aktif</option>
+      <option value="pasif"{% if durum == "pasif" %} selected{% endif %}>Pasif</option>
+      <option value="tum"{% if durum == "tum" %} selected{% endif %}>Tümü</option>
+    </select>
+  </div>
+  <button class="btn btn--secondary" type="submit">Filtrele</button>
+</form>
+
+{% if clients %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Kod</th>
+        <th>Ad Soyad</th>
+        <th>Yaş</th>
+        <th>Terapist</th>
+        <th>Durum</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clients %}
+      <tr>
+        <td><a href="/danisanlar/{{ c.id }}"><code>{{ c.client_code }}</code></a></td>
+        <td>{{ c.full_name }}</td>
+        <td>{% if c.age is not none %}{{ c.age }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{{ therapists.get(c.assigned_therapist_id, "—") }}</td>
+        <td>
+          {% if c.is_active %}<span class="badge badge--ok">Aktif</span>
+          {% else %}<span class="badge">Pasif</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted small">{{ clients|length }} kayıt</p>
+{% elif q %}
+<div class="card empty">
+  <p>Aramaya uyan danışan bulunamadı.</p>
+  <p><a class="btn btn--secondary" href="/danisanlar">Filtreleri temizle</a></p>
+</div>
+{% else %}
+<div class="card empty">
+  <p>Henüz danışan kaydı yok.</p>
+  {% if can_write %}<p><a class="btn" href="/danisanlar/yeni">+ Yeni Danışan</a></p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

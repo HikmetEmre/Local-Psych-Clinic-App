@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}İki adımlı doğrulama{% endblock %}
+{% block page_class %} page--narrow{% endblock %}
+{% block content %}
+<section class="card stack auth-card">
+  <h1>İki adımlı doğrulamayı kurun</h1>
+  <ol class="steps">
+    <li>Telefonunuza bir doğrulama uygulaması kurun (Google Authenticator, Microsoft Authenticator veya Aegis).</li>
+    <li>Uygulamada bu kare kodu okutun.</li>
+    <li>Uygulamanın gösterdiği 6 haneli kodu aşağıya yazın.</li>
+  </ol>
+  <div class="qr">{{ qr_svg }}</div>
+  <p class="muted small">Kare kodu okutamıyorsanız bu anahtarı elle girin:<br><code class="secret">{{ secret }}</code></p>
+  {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/hesap/2fa/kur" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="code">Kod</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required autofocus>
+    </div>
+    <div class="field">
+      <button class="btn btn--block" type="submit">Kurulumu tamamla</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

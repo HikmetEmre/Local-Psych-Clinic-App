@@ -1,3 +1,5 @@
+"""Klinik Web app factory. Run with: uvicorn klinik_cloud.main:create_app --factory"""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -16,6 +18,3 @@ TIER = Tier(
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     return create_base_app(tier=TIER, database_url=settings.database_url)
-
-
-app = create_app()

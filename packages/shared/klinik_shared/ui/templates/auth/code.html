@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Doğrulama kodu{% endblock %}
+{% block page_class %} page--narrow{% endblock %}
+{% block content %}
+<section class="card stack auth-card">
+  <h1>Doğrulama kodu</h1>
+  <p class="muted">Telefonunuzdaki doğrulama uygulamasında görünen 6 haneli kodu girin.</p>
+  {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/login/kod" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="code">Kod</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus>
+    </div>
+    <div class="field">
+      <button class="btn btn--block" type="submit">Doğrula</button>
+    </div>
+  </form>
+  <p class="muted small">Telefonunuz yanınızda değilse kurtarma kodlarınızdan birini girebilirsiniz.</p>
+</section>
+{% endblock %}

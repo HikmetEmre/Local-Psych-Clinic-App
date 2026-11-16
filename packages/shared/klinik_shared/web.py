@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -19,6 +20,8 @@ from jinja2 import (
     PackageLoader,
     select_autoescape,
 )
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from klinik_shared.db import db_status, make_engine
 from klinik_shared.labels_tr import STATUS_LABELS
@@ -29,10 +32,47 @@ UI_DIR = Path(__file__).parent / "ui"
 CLINIC_NAME = "Nil Psikoloji"
 
 
+# No inline scripts or styles anywhere: everything is served from our own origin.
+SECURITY_HEADERS: dict[str, str] = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+        "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
+        "frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+}
+
+
+class SecurityHeadersMiddleware:
+    """Pure ASGI (not BaseHTTPMiddleware) so that streaming responses are untouched."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in SECURITY_HEADERS.items():
+                    headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
 @dataclass(frozen=True)
 class NavItem:
     label: str
     href: str
+    permission: str | None = None  # shown only to users holding it
 
 
 @dataclass(frozen=True)
@@ -60,7 +100,15 @@ def build_templates(app_templates_dir: Path | None = None) -> Jinja2Templates:
     env.filters["datetime_tr"] = format_datetime_tr
     env.globals["clinic_name"] = CLINIC_NAME
     env.globals["status_labels"] = STATUS_LABELS
-    return Jinja2Templates(env=env)
+    return Jinja2Templates(env=env, context_processors=[_request_context])
+
+
+def _request_context(request: Request) -> dict[str, Any]:
+    """Every template sees the logged-in user (or None) and the CSRF token for forms."""
+    return {
+        "user": getattr(request.state, "user", None),
+        "csrf_token": getattr(request.state, "csrf_token", ""),
+    }
 
 
 def create_base_app(
@@ -68,6 +116,7 @@ def create_base_app(
     tier: Tier,
     database_url: str | None,
     with_ui: bool = True,
+    public_home: bool = True,
     templates_dir: Path | None = None,
     nav: tuple[NavItem, ...] = (),
 ) -> FastAPI:
@@ -88,6 +137,7 @@ def create_base_app(
     )
     app.state.engine = engine
     app.state.tier = tier
+    app.add_middleware(SecurityHeadersMiddleware)
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> JSONResponse:
@@ -105,8 +155,12 @@ def create_base_app(
         app.state.templates = templates
         app.mount("/static/ui", StaticFiles(directory=UI_DIR / "static"), name="ui-static")
 
-        @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-        async def home(request: Request) -> HTMLResponse:
-            return templates.TemplateResponse(request, "home.html", {"db": await db_status(engine)})
+        if public_home:
+            # Placeholder until the app has its own authenticated home page.
+            @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+            async def home(request: Request) -> HTMLResponse:
+                return templates.TemplateResponse(
+                    request, "home.html", {"db": await db_status(engine)}
+                )
 
     return app

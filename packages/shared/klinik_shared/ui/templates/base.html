@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#356650">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="same-origin">
   <title>{% block title %}{{ tier.app_name }}{% endblock %} · {{ clinic_name }}</title>
   <link rel="icon" href="/static/ui/img/favicon.png" type="image/png">
   <link rel="stylesheet" href="/static/ui/css/klinik.css">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body{% if user %} hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% endif %}>
   <header class="site-header">
     <div class="site-header__inner">
       <a class="brand" href="/">
@@ -20,19 +21,29 @@
         </span>
       </a>
       <span class="tier-badge">{{ tier.badge }}</span>
-      {% block header_actions %}{% endblock %}
+      {% if user %}
+      <div class="user-menu">
+        <a class="user-menu__name" href="/hesap/sifre" title="Şifre değiştir">{{ user.display_name }}</a>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--secondary btn--small" type="submit">Çıkış</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
   </header>
-  {% if nav %}
+  {% if user and nav %}
   <nav class="tabs" aria-label="Sekmeler">
     <div class="tabs__inner">
       {% for item in nav %}
+      {% if not item.permission or item.permission in user.permissions %}
       <a href="{{ item.href }}"{% if request.url.path.startswith(item.href) %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      {% endif %}
       {% endfor %}
     </div>
   </nav>
   {% endif %}
-  <main class="page">
+  <main class="page{% block page_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">{{ clinic_name }} · {{ tier.app_name }}</footer>

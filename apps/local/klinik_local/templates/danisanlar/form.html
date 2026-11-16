@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% set can_write = "clients.write" in user.permissions %}
+{% block title %}{% if client %}{{ client.client_code }}{% else %}Yeni Danışan{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>
+    {% if client %}{{ client.full_name }} <code>{{ client.client_code }}</code>
+    {% else %}Yeni Danışan{% endif %}
+  </h1>
+  <a class="btn btn--secondary" href="/danisanlar">← Danışanlar</a>
+</div>
+
+{% if saved %}<div class="alert" role="status">Kaydedildi.</div>{% endif %}
+{% if conflict %}
+<div class="alert alert--warn" role="alert">
+  Bu kayıt siz düzenlerken başka biri tarafından değiştirildi. Değişikliklerinizi kontrol edip tekrar kaydedin.
+</div>
+{% endif %}
+{% if client and not client.is_active %}
+<div class="alert alert--warn">Bu danışan pasif. Yeni randevu oluşturulamaz.</div>
+{% endif %}
+
+<section class="card">
+  <form method="post" action="{% if client %}/danisanlar/{{ client.id }}{% else %}/danisanlar{% endif %}" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if client %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label for="full_name">Ad Soyad</label>
+        <input id="full_name" name="full_name" type="text" maxlength="120" value="{{ values.full_name or '' }}" required{% if not can_write %} disabled{% endif %}>
+        {% if errors.full_name %}<div class="field__error">{{ errors.full_name }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label for="birth_date">Doğum tarihi</label>
+        <input id="birth_date" name="birth_date" type="date" value="{{ values.birth_date or '' }}"{% if not can_write %} disabled{% endif %}>
+        {% if errors.birth_date %}<div class="field__error">{{ errors.birth_date }}</div>{% endif %}
+        {% if client and client.age is not none %}<div class="muted small">Yaş: {{ client.age }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label for="phone">Telefon</label>
+        <input id="phone" name="phone" type="tel" maxlength="30" value="{{ values.phone or '' }}"{% if not can_write %} disabled{% endif %}>
+        {% if errors.phone %}<div class="field__error">{{ errors.phone }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label for="email">E-posta</label>
+        <input id="email" name="email" type="email" maxlength="120" value="{{ values.email or '' }}"{% if not can_write %} disabled{% endif %}>
+        {% if errors.email %}<div class="field__error">{{ errors.email }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label for="assigned_therapist_id">Terapist</label>
+        <select id="assigned_therapist_id" name="assigned_therapist_id"{% if not can_write %} disabled{% endif %}>
+          <option value="">— Atanmadı —</option>
+          {% for th in therapists %}
+          <option value="{{ th.id }}"{% if values.assigned_therapist_id == th.id|string %} selected{% endif %}>{{ th.display_name }}</option>
+          {% endfor %}
+        </select>
+        {% if errors.assigned_therapist_id %}<div class="field__error">{{ errors.assigned_therapist_id }}</div>{% endif %}
+      </div>
+    </div>
+    {% if can_write %}
+    <div class="form-actions">
+      <button class="btn" type="submit">Kaydet</button>
+      <a class="btn btn--secondary" href="/danisanlar">Vazgeç</a>
+    </div>
+    {% endif %}
+  </form>
+</section>
+
+{% if client and can_write %}
+<section class="card">
+  <h2>Durum</h2>
+  <form method="post" action="/danisanlar/{{ client.id }}/durum">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if client.is_active %}
+    <input type="hidden" name="active" value="0">
+    <p class="muted">Pasif danışanlar için yeni randevu oluşturulamaz. Geçmiş kayıtlar korunur.</p>
+    <button class="btn btn--danger" type="submit">Pasif yap</button>
+    {% else %}
+    <input type="hidden" name="active" value="1">
+    <button class="btn btn--secondary" type="submit">Yeniden aktif yap</button>
+    {% endif %}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

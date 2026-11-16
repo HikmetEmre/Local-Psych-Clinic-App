@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Kurtarma kodları{% endblock %}
+{% block page_class %} page--narrow{% endblock %}
+{% block content %}
+<section class="card stack auth-card">
+  <h1>Kurtarma kodlarınız</h1>
+  <div class="alert alert--warn">
+    Bu kodlar <strong>yalnızca şimdi</strong> gösterilir. Yazdırın veya güvenli bir yere not edin.
+    Telefonunuzu kaybederseniz her kod bir kez giriş yapmanızı sağlar.
+  </div>
+  <ul class="code-list">
+    {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+  </ul>
+  <p><a class="btn btn--block" href="/">Kodları kaydettim, devam et</a></p>
+</section>
+{% endblock %}

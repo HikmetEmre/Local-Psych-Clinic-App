@@ -30,6 +30,21 @@ python scripts/smoke_healthz.py
 - Klinik Web: http://127.0.0.1:8001
 - Klinik Kasa: http://127.0.0.1:8002
 
+## Kullanıcı ekleme (adding users)
+
+Users are created from one TOML file so that their ids are identical in both tiers
+(see `infra/users.example.toml`). Each new user gets a one-time password, must change it at
+first login, and sets up two-step verification (TOTP) with an authenticator app.
+
+```sh
+# development stack
+docker compose --env-file infra/dev.env -f infra/docker-compose.yml -f infra/docker-compose.dev.yml   run --rm -T local-migrate python -m klinik_local.manage bootstrap-users - < infra/users.example.toml
+```
+
+Permissions, deactivation, password reset and 2FA reset are then managed in **Ayarlar → Kullanıcılar**.
+
+New keys for a real installation: `python -m klinik_local.manage generate-keys`.
+
 ## Migrations
 
 Two independent Alembic chains:

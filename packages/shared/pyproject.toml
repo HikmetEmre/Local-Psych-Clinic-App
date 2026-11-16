@@ -12,6 +12,11 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.14",
     "tzdata>=2024.2",
+    "bcrypt>=4.2",
+    "pyotp>=2.9",
+    "cryptography>=43",
+    "segno>=1.6",
+    "python-multipart>=0.0.12",
 ]
 
 [build-system]

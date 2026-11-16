@@ -1,9 +1,25 @@
+"""Klinik Kasa app factory. Run with: uvicorn klinik_local.main:create_app --factory"""
+
 from __future__ import annotations
 
-from fastapi import FastAPI
+from datetime import timedelta
+from pathlib import Path
 
+from cryptography.fernet import MultiFernet
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse, Response
+from fastapi.templating import Jinja2Templates
+
+from klinik_local import tables as t
+from klinik_local.ayarlar.routes import build_router as build_settings_router
 from klinik_local.config import Settings, get_settings
-from klinik_shared.web import Tier, create_base_app
+from klinik_local.crypto.fernet import FieldCipher, parse_keys
+from klinik_local.danisanlar.routes import build_router as build_clients_router
+from klinik_local.danisanlar.service import ClientService
+from klinik_shared.authkit.service import AuthPolicy, AuthStore, CurrentUser
+from klinik_shared.authkit.web import AuthKit, AuthWebConfig
+from klinik_shared.permissions import Permission
+from klinik_shared.web import NavItem, Tier, create_base_app
 
 TIER = Tier(
     service="klinik-local",
@@ -12,10 +28,69 @@ TIER = Tier(
     badge="Ofis",
 )
 
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+NAV = (
+    NavItem("Danışanlar", "/danisanlar", Permission.CLIENTS_READ.value),
+    NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
+)
+
+
+class ConfigError(RuntimeError):
+    pass
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    return create_base_app(tier=TIER, database_url=settings.database_url)
+    if not settings.database_url:
+        raise ConfigError("LOCAL_DATABASE_URL is required")
+    try:
+        cipher = FieldCipher(settings.fernet_keys)
+    except ValueError as exc:
+        raise ConfigError(f"LOCAL_FERNET_KEYS: {exc}") from exc
+    try:
+        auth_cipher = MultiFernet(parse_keys(settings.auth_fernet_key))
+    except ValueError as exc:
+        raise ConfigError(f"LOCAL_AUTH_FERNET_KEY: {exc}") from exc
 
+    app = create_base_app(
+        tier=TIER,
+        database_url=settings.database_url,
+        public_home=False,
+        templates_dir=TEMPLATES_DIR,
+        nav=NAV,
+    )
+    templates: Jinja2Templates = app.state.templates
 
-app = create_app()
+    store = AuthStore(
+        t.auth,
+        t.audit_log,
+        auth_cipher,
+        AuthPolicy(
+            idle_timeout=timedelta(minutes=settings.idle_timeout_minutes),
+            max_lifetime=timedelta(hours=settings.session_max_hours),
+        ),
+    )
+    auth = AuthKit(
+        app.state.engine,
+        store,
+        AuthWebConfig(
+            cookie_name="kasa_session",
+            issuer="Nil Psikoloji Kasa",
+            cookie_secure=settings.cookie_secure,
+        ),
+        templates,
+    )
+    auth.install(app)
+
+    clients = ClientService(cipher)
+    app.state.clients = clients
+    logged_in = Depends(auth.require())
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def home(request: Request, user: CurrentUser = logged_in) -> Response:
+        return templates.TemplateResponse(request, "home.html", {})
+
+    app.include_router(build_clients_router(auth, clients, templates))
+    app.include_router(build_settings_router(auth, templates))
+    return app

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Kullanıcılar{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Kullanıcılar ve yetkiler</h1>
+</div>
+
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+{% if temporary_password %}
+<div class="alert alert--warn" role="status">
+  <strong>{{ temporary_password[0] }}</strong> için geçici şifre: <code>{{ temporary_password[1] }}</code><br>
+  Bu şifre yalnızca şimdi gösterilir. Kullanıcı ilk girişte değiştirmek zorundadır.
+</div>
+{% endif %}
+
+{% for u in users %}
+<section class="card stack">
+  <div class="row">
+    <h2>{{ u.display_name }}</h2>
+    <code>{{ u.username }}</code>
+    {% if u.is_active %}<span class="badge badge--ok">Aktif</span>{% else %}<span class="badge">Pasif</span>{% endif %}
+    {% if u.totp_confirmed_at %}<span class="badge badge--ok">2FA kurulu</span>{% else %}<span class="badge badge--no_show">2FA kurulmadı</span>{% endif %}
+    {% if u.id == user.id %}<span class="badge">Siz</span>{% endif %}
+  </div>
+
+  <form method="post" action="/ayarlar/kullanicilar/{{ u.id }}/yetkiler">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="checks">
+      {% for p in all_permissions %}
+      <label>
+        <input type="checkbox" name="permission" value="{{ p }}"{% if p in grants.get(u.id, []) %} checked{% endif %}>
+        {{ permission_labels.get(p, p) }}
+      </label>
+      {% endfor %}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn--secondary" type="submit">Yetkileri kaydet</button>
+    </div>
+  </form>
+
+  {% if u.id != user.id %}
+  <div class="row">
+    <form method="post" action="/ayarlar/kullanicilar/{{ u.id }}/durum">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="active" value="{{ 0 if u.is_active else 1 }}">
+      <button class="btn btn--small {{ 'btn--danger' if u.is_active else 'btn--secondary' }}" type="submit">
+        {{ "Pasif yap" if u.is_active else "Aktif yap" }}
+      </button>
+    </form>
+    <form method="post" action="/ayarlar/kullanicilar/{{ u.id }}/sifre-sifirla">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn--small btn--secondary" type="submit">Şifreyi sıfırla</button>
+    </form>
+    <form method="post" action="/ayarlar/kullanicilar/{{ u.id }}/2fa-sifirla">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn--small btn--secondary" type="submit">2FA sıfırla</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+
+<p class="muted small">
+  Yeni kullanıcılar, kimliklerinin iki sistemde de aynı olması için kurulum komutuyla eklenir
+  (bkz. README, "Kullanıcı ekleme").
+</p>
+{% endblock %}

@@ -1,0 +1,16 @@
+# Users are created from this file in BOTH tiers so their ids match.
+#   python -m klinik_local.manage bootstrap-users users.toml
+# Generate an id with: python -c "import uuid; print(uuid.uuid4())"
+# sets: admin, therapist, scheduler (see docs/PLAN_MODE_BRIEF.md §5)
+
+[[users]]
+id = "0b9c6f0e-5d1a-4f6b-9a53-1f2f1c7a1a01"
+username = "terapist.a"
+display_name = "Terapist A"
+sets = ["admin", "therapist"]
+
+[[users]]
+id = "0b9c6f0e-5d1a-4f6b-9a53-1f2f1c7a1a02"
+username = "terapist.b"
+display_name = "Terapist B"
+sets = ["therapist", "scheduler"]

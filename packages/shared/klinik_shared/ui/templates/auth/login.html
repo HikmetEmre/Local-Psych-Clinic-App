@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Giriş{% endblock %}
+{% block page_class %} page--narrow{% endblock %}
+{% block content %}
+<section class="card stack auth-card">
+  <img class="auth-card__logo" src="/static/ui/img/logo.jpeg" alt="{{ clinic_name }}" width="1004" height="479">
+  <h1>{{ tier.app_name }}</h1>
+  {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" autocomplete="on">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="username">Kullanıcı adı</label>
+      <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Şifre</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field">
+      <button class="btn btn--block" type="submit">Giriş yap</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -46,9 +46,16 @@ services:
       <<: *app-build
       args: { APP: local }
     restart: "no"
-    command: ["alembic", "-n", "local", "upgrade", "head"]
+    # Migrate, then give the least-privilege roles their passwords.
+    command:
+      - sh
+      - -c
+      - alembic -n local upgrade head && python -m klinik_local.manage set-role-passwords
     environment:
       LOCAL_MIGRATION_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+      LOCAL_APP_DB_PASSWORD: ${LOCAL_APP_DB_PASSWORD:?set LOCAL_APP_DB_PASSWORD in the env file}
+      LOCAL_SYNC_DB_PASSWORD: ${LOCAL_SYNC_DB_PASSWORD:?set LOCAL_SYNC_DB_PASSWORD in the env file}
+      LOCAL_AUTH_FERNET_KEY: ${LOCAL_AUTH_FERNET_KEY:?set LOCAL_AUTH_FERNET_KEY in the env file}
     depends_on:
       local-db: { condition: service_healthy }
 
@@ -58,7 +65,11 @@ services:
       args: { APP: local }
     restart: unless-stopped
     environment:
-      LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+      # kasa_app is not the table owner, so row-level security applies to it.
+      LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_app:${LOCAL_APP_DB_PASSWORD}@local-db:5432/kasa
+      LOCAL_FERNET_KEYS: ${LOCAL_FERNET_KEYS:?set LOCAL_FERNET_KEYS in the env file}
+      LOCAL_AUTH_FERNET_KEY: ${LOCAL_AUTH_FERNET_KEY}
+      LOCAL_COOKIE_SECURE: ${LOCAL_COOKIE_SECURE:-true}
     ports:
       - "127.0.0.1:8002:8000"
     depends_on:
@@ -71,7 +82,7 @@ services:
       args: { APP: sync }
     restart: unless-stopped
     environment:
-      SYNC_LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_migrator:${LOCAL_DB_PASSWORD}@local-db:5432/kasa
+      SYNC_LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_sync:${LOCAL_SYNC_DB_PASSWORD}@local-db:5432/kasa
       SYNC_CLOUD_BASE_URL: ${SYNC_CLOUD_BASE_URL:?set SYNC_CLOUD_BASE_URL in the env file}
     depends_on:
       local-migrate: { condition: service_completed_successfully }
