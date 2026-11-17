@@ -40,6 +40,9 @@ TABLE_LABELS = {
     "appointments": "Randevu",
     "therapy_sessions": "Seans kaydı",
     "payments": "Ödeme",
+    "expenses": "Gider",
+    "client_notes": "Klinik not",
+    "note_revisions": "Not geçmişi",
 }
 FIELD_LABELS = {
     "full_name_encrypted": "Ad soyad",
@@ -67,10 +70,19 @@ FIELD_LABELS = {
     "void_reason": "İptal nedeni",
     "deleted_at": "Silinme",
     "format_method_id": "Seans biçimi",
+    "kind": "Tür",
+    "title_encrypted": "Başlık",
+    "body_encrypted": "Not",
+    "noted_at": "Not tarihi",
+    "important": "Önemli",
+    "spent_on": "Gider tarihi",
+    "category": "Gider türü",
+    "description": "Açıklama",
 }
 HIDDEN = {
     "id", "created_at", "updated_at", "change_seq", "version", "created_by", "updated_by",
     "ends_at", "session_counter", "age_group_id_at_session", "recorded_by", "voided_by",
+    "author_id",
     "__methods",
 }  # fmt: skip
 

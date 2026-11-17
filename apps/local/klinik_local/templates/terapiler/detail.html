@@ -5,6 +5,7 @@
   <h1><code>{{ s.client_code }}</code> · Seans #{{ s.session_number }}</h1>
   <div class="row">
     {% if own %}<a class="btn" href="/terapiler/{{ s.id }}/duzenle">Düzenle</a>{% endif %}
+    <a class="btn btn--secondary" href="/danisanlar/{{ s.client_id }}/notlar#not-{{ s.id }}">Danışanın klinik notları</a>
     <a class="btn btn--secondary" href="/terapiler">← Terapiler</a>
   </div>
 </div>

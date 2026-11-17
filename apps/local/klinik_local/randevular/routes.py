@@ -102,8 +102,14 @@ def build_router(
         async with auth.tx(user) as conn:
             therapists = await service.therapists(conn)
             rooms = await service.rooms(conn, active_only=False)
+            # A cancelled appointment frees its slot: it is not drawn on the calendar.
             appointments = await service.in_range(
-                conn, first, days, therapist_id=therapist_id, room_id=room_id
+                conn,
+                first,
+                days,
+                therapist_id=therapist_id,
+                room_id=room_id,
+                include_cancelled=False,
             )
         shown = [t for t in therapists if therapist_id is None or t.id == therapist_id]
         grid = build_grid(view, day, appointments, [Person(t.id, t.label) for t in shown])

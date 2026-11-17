@@ -33,7 +33,7 @@ VOID_REASONS = {
     "refund": "İade",
     "duplicate": "Mükerrer kayıt",
 }
-PERIODS = ("gun", "hafta", "ay")
+PERIODS = ("gun", "hafta", "ay", "yil")
 _AMOUNT_RE = re.compile(r"[0-9.,]+")
 
 
@@ -108,6 +108,8 @@ class Period:
             return self.first + timedelta(days=direction)
         if self.kind == "hafta":
             return self.first + timedelta(days=7 * direction)
+        if self.kind == "yil":
+            return date(self.first.year + direction, 1, 1)
         month = self.first.month - 1 + direction
         return date(self.first.year + month // 12, month % 12 + 1, 1)
 
@@ -118,6 +120,8 @@ def period_for(kind: str, day: date) -> Period:
     if kind == "hafta":
         monday = day - timedelta(days=day.weekday())
         return Period(kind, monday, monday + timedelta(days=6))
+    if kind == "yil":
+        return Period("yil", date(day.year, 1, 1), date(day.year, 12, 31))
     first = day.replace(day=1)
     following = date(first.year + first.month // 12, first.month % 12 + 1, 1)
     return Period("ay", first, following - timedelta(days=1))

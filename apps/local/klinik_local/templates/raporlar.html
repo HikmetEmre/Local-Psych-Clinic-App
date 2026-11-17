@@ -94,8 +94,8 @@
   {% if 'gelir' in kinds %}
   <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
     <input type="hidden" name="rapor" value="gelir">
-    <h2>Gelir raporu</h2>
-    <p class="muted small">Toplam gelir, ödeme yöntemleri{% if income_all %}, terapistlere göre dağılım{% endif %}, günlük gelir ve tüm ödemelerin listesi (iptaller dahil).{% if not income_all %} Yalnızca sizin gelirleriniz.{% endif %}</p>
+    <h2>{% if income_all %}Gelir-gider raporu{% else %}Gelir raporu{% endif %}</h2>
+    <p class="muted small">{% if income_all %}Gelir, gider ve <strong>net gelir</strong>; aylara göre gelir-gider-net, giderler türlerine göre, ödeme yöntemleri, terapistlere göre gelir, tüm ödeme ve gider kayıtları (iptaller dahil). Bir terapist seçilirse yalnızca o terapistin geliri gösterilir (giderler klinik geneline aittir).{% else %}Toplam gelir, ödeme yöntemleri, günlük gelir ve tüm ödemelerin listesi (iptaller dahil). Yalnızca sizin gelirleriniz.{% endif %}</p>
     <div class="form-grid">
       {{ period('g') }}
       {% if income_all %}{{ therapist_choice('g', 'Tüm klinik') }}{% endif %}

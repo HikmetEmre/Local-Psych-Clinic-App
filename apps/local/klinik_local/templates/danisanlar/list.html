@@ -32,6 +32,7 @@
         <th>Yaş</th>
         <th>Terapist</th>
         <th>Durum</th>
+        {% if "sessions.read_own" in user.permissions %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -45,6 +46,7 @@
           {% if c.is_active %}<span class="badge badge--ok">Aktif</span>
           {% else %}<span class="badge">Pasif</span>{% endif %}
         </td>
+        {% if "sessions.read_own" in user.permissions %}<td><a class="btn btn--small btn--secondary" href="/danisanlar/{{ c.id }}/notlar">Klinik notlar</a></td>{% endif %}
       </tr>
       {% endfor %}
     </tbody>

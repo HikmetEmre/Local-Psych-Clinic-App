@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from klinik_local import tables as t
+from klinik_local.gelir.expenses import CATEGORIES, ExpenseService, monthly
 from klinik_local.gelir.service import (
     PERIODS,
     VOID_REASONS,
@@ -34,7 +35,7 @@ from klinik_shared.labels_tr import PAYMENT_METHOD_LABELS
 from klinik_shared.permissions import Permission
 from klinik_shared.timeutil import format_datetime_tr, now_utc, to_istanbul
 
-PERIOD_LABELS = {"gun": "Gün", "hafta": "Hafta", "ay": "Ay"}
+PERIOD_LABELS = {"gun": "Gün", "hafta": "Hafta", "ay": "Ay", "yil": "Yıl"}
 
 
 def period_title(kind: str, first: date, last: date) -> str:
@@ -42,6 +43,8 @@ def period_title(kind: str, first: date, last: date) -> str:
         return f"{first.day} {MONTHS_TR[first.month - 1]} {first.year}"
     if kind == "ay":
         return f"{MONTHS_TR[first.month - 1]} {first.year}"
+    if kind == "yil":
+        return str(first.year)
     if first.month == last.month:
         return f"{first.day}–{last.day} {MONTHS_TR[first.month - 1]} {first.year}"
     start = f"{first.day} {MONTHS_TR[first.month - 1]}"
@@ -63,6 +66,8 @@ def build_router(
     logged_in = Depends(auth.require())
     can_pay = Depends(auth.require(Permission.PAYMENTS_WRITE))
     can_export = Depends(auth.require(Permission.INCOME_READ_ALL, Permission.ADMIN_EXPORT))
+    admin_money = Depends(auth.require(Permission.INCOME_READ_ALL))
+    expenses = ExpenseService()
 
     def forbidden(request: Request) -> Response:
         return templates.TemplateResponse(
@@ -89,9 +94,13 @@ def build_router(
                 therapist_id = UUID(params["terapist"])
             except ValueError:
                 therapist_id = None
+        clinic_view = scope == "all" and therapist_id is None
         async with auth.tx(user) as conn:
             result = await income.report(conn, user, period, therapist_id=therapist_id)
             therapists = await appointments.therapists(conn) if scope == "all" else []
+            spent = (
+                await expenses.in_period(conn, period.first, period.last) if clinic_view else None
+            )
         largest = max((amount for _, amount in result.by_day), default=0) or 1
 
         def url(**changes: Any) -> str:
@@ -123,6 +132,19 @@ def build_router(
                 "void_reasons": VOID_REASONS,
                 "can_pay": user.has(Permission.PAYMENTS_WRITE),
                 "can_export": user.has(Permission.ADMIN_EXPORT) and scope == "all",
+                "spent": spent,
+                "month_names": MONTHS_TR,
+                "months": monthly(
+                    period.first, period.last, result.by_day, spent.items if spent else []
+                )
+                if kind == "yil"
+                else [],
+                "net": result.total - spent.total if spent else None,
+                "categories": CATEGORIES,
+                "expense_notice": {"1": "Gider kaydedildi.", "iptal": "Gider iptal edildi."}.get(
+                    params.get("gider", "")
+                ),
+                "expense_error": params.get("gider_hatasi"),
             },
         )
         response.headers["Cache-Control"] = "no-store"
@@ -177,6 +199,49 @@ def build_router(
                 "Cache-Control": "no-store",
             },
         )
+
+    def back_to(form: Any, extra: dict[str, str]) -> str:
+        query = {k: str(form.get(k) or "") for k in ("donem", "tarih")}
+        query.update(extra)
+        return "/gelir?" + urlencode({k: v for k, v in query.items() if v}) + "#giderler"
+
+    @router.post("/giderler", response_class=HTMLResponse)
+    async def record_expense(request: Request, user: CurrentUser = admin_money) -> Response:
+        form = await request.form()
+        try:
+            amount = parse_amount(form.get("amount"))
+            raw_day = str(form.get("spent_on") or "")
+            async with auth.tx(user) as conn:
+                await expenses.record(
+                    conn,
+                    user,
+                    spent_on=date.fromisoformat(raw_day) if raw_day else None,
+                    category=str(form.get("category") or ""),
+                    description=str(form.get("description") or ""),
+                    amount=amount,
+                    method=str(form.get("method") or ""),
+                )
+        except PaymentError as exc:
+            return RedirectResponse(back_to(form, {"gider_hatasi": exc.message}), status_code=303)
+        except ValueError:
+            return RedirectResponse(
+                back_to(form, {"gider_hatasi": "Tarih geçersiz."}), status_code=303
+            )
+        return RedirectResponse(back_to(form, {"gider": "1"}), status_code=303)
+
+    @router.post("/giderler/{expense_id}/iptal", response_class=HTMLResponse)
+    async def void_expense(
+        request: Request, expense_id: UUID, user: CurrentUser = admin_money
+    ) -> Response:
+        form = await request.form()
+        try:
+            async with auth.tx(user) as conn:
+                await expenses.void(conn, user, expense_id, str(form.get("reason") or ""))
+        except PaymentError as exc:
+            return RedirectResponse(back_to(form, {"gider_hatasi": exc.message}), status_code=303)
+        except PaymentNotFound:
+            pass
+        return RedirectResponse(back_to(form, {"gider": "iptal"}), status_code=303)
 
     @router.post("/odemeler", response_class=HTMLResponse)
     async def record(request: Request, user: CurrentUser = can_pay) -> Response:

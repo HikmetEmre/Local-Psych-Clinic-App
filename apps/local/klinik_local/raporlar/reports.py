@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import FieldCipher
+from klinik_local.gelir.expenses import CATEGORIES, ExpenseService, monthly
 from klinik_local.gelir.service import VOID_REASONS, format_try
+from klinik_local.notlar.service import SESSION_KIND, Entry, NoteService
 from klinik_local.raporlar import pdf
 from klinik_shared.authkit.service import CurrentUser
 from klinik_shared.calendar import DAYS_TR, MONTHS_TR
@@ -31,7 +33,7 @@ KINDS = {
     "seanslar": "Seans raporu",
     "danisan": "Danışan dosyası",
     "randevular": "Randevu listesi",
-    "gelir": "Gelir raporu",
+    "gelir": "Gelir-gider raporu",
     "istatistik": "Randevu istatistikleri",
 }
 
@@ -439,7 +441,14 @@ async def client_file(
         conn, cipher, client_id=row.id, with_notes=params.include_notes
     )
     sees_all = user.has(Permission.SESSIONS_READ_OTHERS)
-    if not sees_all and row.assigned_therapist_id != user.id and not sessions:
+    own_notes = (
+        await conn.execute(
+            select(t.client_notes.c.id).where(
+                t.client_notes.c.client_id == row.id, t.client_notes.c.deleted_at.is_(None)
+            )
+        )
+    ).first()
+    if not sees_all and row.assigned_therapist_id != user.id and not sessions and not own_notes:
         # Not this therapist's client: the file is not theirs to print.
         raise ReportNotFound
     appointments = await visible_appointments(conn, cipher, client_id=row.id)
@@ -568,11 +577,39 @@ async def client_file(
         else:
             story.append(pdf.empty("Ödeme kaydı yok."))
 
-    if params.include_notes and sessions:
-        story.append(PageBreak())
-        story += [pdf.p("Seans notları ve ödevler", pdf.H2)]
-        story += notes_blocks(sessions, names)
+    if params.include_notes:
+        log = await NoteService(cipher).timeline(conn, row.id)
+        if log:
+            story.append(PageBreak())
+            story += [
+                pdf.p("Klinik notlar (seans notları ve diğer notlar, tarih sırasıyla)", pdf.H2)
+            ]
+            story += log_blocks(sorted(log, key=lambda e: e.at))
     return story
+
+
+def log_blocks(entries: list[Entry]) -> list[Flowable]:
+    out: list[Flowable] = []
+    for e in entries:
+        if e.kind == SESSION_KIND and not (e.body or e.homework):
+            continue
+        head = f"{d(e.at)} · {e.kind_label} · {e.author}"
+        if e.important:
+            head += " · ÖNEMLİ"
+        if e.revisions:
+            head += f" · {len(e.revisions)} kez düzenlendi"
+        block: list[Flowable] = [pdf.p(head, pdf.H3)]
+        if e.title:
+            block.append(pdf.p(e.title, pdf.CELL_BOLD))
+        if e.kind == SESSION_KIND and e.methods:
+            block.append(pdf.p(f"Yöntemler: {e.methods}", pdf.SMALL))
+        if e.body:
+            block.append(pdf.p(e.body, pdf.NOTE))
+        if e.homework:
+            block.append(pdf.markup("<b>Ödev</b>", pdf.SMALL))
+            block.append(pdf.p(e.homework, pdf.NOTE))
+        out.append(pdf.keep(*block))
+    return out or [pdf.empty("Not yazılmamış.")]
 
 
 # ---------------------------------------------------------------- 3. appointment list
@@ -658,26 +695,83 @@ async def income_report(
     total = sum((x["amount"] for x in valid), Decimal("0"))
     width = pdf.content_width(meta)
     scope = names.get(therapist_id, "—") if therapist_id else "Tüm klinik"
+    # Expenses are the clinic's: shown when the admin looks at the whole clinic.
+    clinic = sees_all and therapist_id is None
+    spent = await ExpenseService().in_period(conn, params.first, params.last) if clinic else None
+    net = total - spent.total if spent else None
     story = pdf.heading(
-        "Gelir raporu",
+        "Gelir-gider raporu" if clinic else "Gelir raporu",
         [f"Dönem: {period_text(params.first, params.last)}", f"Kapsam: {scope}",
-         "Gelir, randevunun terapistine yazılır. İptal edilen ödemeler toplama katılmaz."],
+         "Gelir, randevunun terapistine yazılır. İptal edilen ödeme ve giderler toplama katılmaz."],
     )  # fmt: skip
     days = (params.last - params.first).days + 1
+    if spent is not None and net is not None:
+        story.append(
+            pdf.facts(
+                [
+                    ("Toplam gelir", format_try(total)),
+                    ("Toplam gider", format_try(spent.total)),
+                    ("NET GELİR", format_try(net)),
+                    ("Kâr oranı", percent(int(net * 100), int(total * 100)) if total else "—"),
+                ],
+                width,
+            )
+        )  # fmt: skip
+        story.append(Spacer(1, 6))
     story.append(
         pdf.facts(
             [
-                ("Toplam gelir", format_try(total)),
                 ("Ödeme sayısı", len(valid)),
                 ("Ortalama ödeme", format_try(total / len(valid)) if valid else "—"),
-                ("Günlük ortalama", format_try(total / days)),
+                ("Günlük ortalama gelir", format_try(total / days)),
+                ("Gider kaydı", spent.count if spent else "—"),
                 ("İptal edilen ödeme", len(voided)),
                 ("İptal tutarı", format_try(sum((x["amount"] for x in voided), Decimal("0")))),
             ],
             width,
         )
     )  # fmt: skip
-    if not items:
+    if spent is not None and net is not None:
+        if params.first.month != params.last.month or params.first.year != params.last.year:
+            by_day_income: dict[date, Decimal] = defaultdict(Decimal)
+            for x in valid:
+                by_day_income[to_istanbul(x["paid_at"]).date()] += x["amount"]
+            months = monthly(params.first, params.last, list(by_day_income.items()), spent.items)
+            story += pdf.section("Aylara göre gelir, gider ve net")
+            story.append(
+                pdf.table(
+                    ["Ay", "Gelir", "Gider", "Net"],
+                    [[f"{MONTHS_TR[m['month'].month - 1]} {m['month'].year}", format_try(m["income"]),
+                      format_try(m["expense"]), format_try(m["net"])] for m in months],
+                    [width * w for w in (0.31, 0.23, 0.23, 0.23)],
+                    right=(1, 2, 3),
+                    total=["Toplam", format_try(total), format_try(spent.total), format_try(net)],
+                )
+            )  # fmt: skip
+        story += pdf.section("Giderler: türlere göre")
+        if spent.by_category:
+            story.append(
+                pdf.table(
+                    ["Gider türü", "Kayıt", "Tutar", "Pay"],
+                    [[CATEGORIES.get(code, code), n, format_try(amount),
+                      percent(int(amount * 100), int(spent.total * 100))]
+                     for code, amount, n in spent.by_category],
+                    [width * w for w in (0.46, 0.12, 0.24, 0.18)],
+                    right=(1, 2, 3),
+                    total=["Toplam", spent.count, format_try(spent.total), "%100"],
+                )
+            )  # fmt: skip
+            story.append(Spacer(1, 6))
+            story.append(
+                pdf.Bars(
+                    [(CATEGORIES.get(code, code), float(amount), format_try(amount))
+                     for code, amount, _ in spent.by_category],
+                    width,
+                )
+            )  # fmt: skip
+        else:
+            story.append(pdf.empty("Bu dönemde gider kaydı yok."))
+    if not items and not (spent and spent.items):
         return [*story, Spacer(1, 8), pdf.empty()]
 
     by_method: dict[str, Decimal] = defaultdict(Decimal)
@@ -720,7 +814,7 @@ async def income_report(
     by_day: dict[date, Decimal] = defaultdict(Decimal)
     for x in valid:
         by_day[to_istanbul(x["paid_at"]).date()] += x["amount"]
-    if by_day:
+    if by_day and days <= 62:
         story += pdf.section("Günlere göre")
         story.append(
             pdf.Bars(
@@ -749,6 +843,24 @@ async def income_report(
             struck=[i for i, x in enumerate(items) if x["voided"]],
         )
     )  # fmt: skip
+    if spent is not None and spent.items:
+        story += pdf.section("Gider listesi")
+        valid_spent = sum((x.amount for x in spent.items if not x.voided), Decimal("0"))
+        story.append(
+            pdf.table(
+                ["Tarih", "Tür", "Açıklama", "Şekil", "Tutar", "Durum"],
+                [
+                    [d(x.spent_on), CATEGORIES.get(x.category, x.category), x.description or "—",
+                     PAYMENT_METHOD_LABELS.get(x.method, x.method), format_try(x.amount),
+                     f"İptal: {VOID_REASONS.get(x.void_reason or '', '')}" if x.voided else "Geçerli"]
+                    for x in sorted(spent.items, key=lambda e: e.spent_on)
+                ],
+                [width * w for w in (0.13, 0.22, 0.25, 0.11, 0.14, 0.15)],
+                right=(4,),
+                total=["Toplam (geçerli)", "", "", "", format_try(valid_spent), ""],
+                struck=[i for i, x in enumerate(sorted(spent.items, key=lambda e: e.spent_on)) if x.voided],
+            )
+        )  # fmt: skip
     return story
 
 

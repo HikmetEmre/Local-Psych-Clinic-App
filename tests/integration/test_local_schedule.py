@@ -356,3 +356,35 @@ def test_role_change_and_self_protection(clinic: Clinic) -> None:
 def test_a_therapist_has_no_admin_pages(clinic: Clinic) -> None:
     for path in ("/ayarlar/kullanicilar", "/ayarlar/odalar", "/ayarlar/yedek"):
         assert clinic.b.get(path).status_code == 403, path
+
+
+def test_cancelled_appointment_vanishes_and_open_calendars_are_told(clinic: Clinic) -> None:
+    import asyncio
+
+    import asyncpg
+
+    book(clinic.a, clinic.zeynep, A_ID, day(1), "10:00", room_id=clinic.room)
+    appt = appointment_id(clinic.db, clinic.zeynep)
+    page = f"/takvim?gun={day(1).isoformat()}"
+    assert "Zeynep Arslan" in clinic.b.get(page).text
+
+    async def listen_while_cancelling() -> list[str]:
+        heard: list[str] = []
+        conn = await asyncpg.connect(clinic.db.dsn())
+        try:
+            await conn.add_listener("schedule_changed", lambda *args: heard.append(args[3]))
+            await asyncio.to_thread(clinic.a.post, f"/randevular/{appt}/iptal", {"version": "1"})
+            for _ in range(50):
+                if heard:
+                    break
+                await asyncio.sleep(0.1)
+        finally:
+            await conn.close()
+        return heard
+
+    # This is what makes every open calendar and homepage reload by itself.
+    assert asyncio.run(listen_while_cancelling()) == ["appointments"]
+    assert "Zeynep Arslan" not in clinic.b.get(page).text
+    assert "Zeynep Arslan" not in clinic.b.get(f"/?gun={day(1).isoformat()}&kim=hepsi").text
+    calendar = clinic.b.get(page).text
+    assert 'hx-trigger="sse:calendar, every 60s"' in calendar

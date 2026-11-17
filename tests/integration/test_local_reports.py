@@ -114,7 +114,7 @@ def period(**extra: str) -> dict[str, str]:
 
 def test_reports_page_lists_reports_by_role(office: Office) -> None:
     admin = office.admin.get("/raporlar").text
-    for title in ("Seans raporu", "Danışan dosyası", "Randevu listesi", "Gelir raporu",
+    for title in ("Seans raporu", "Danışan dosyası", "Randevu listesi", "Gelir-gider raporu",
                   "Randevu istatistikleri"):  # fmt: skip
         assert title in admin
     therapist = office.b.get("/raporlar").text

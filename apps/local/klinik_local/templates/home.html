@@ -9,7 +9,7 @@
 {% if open_conflicts %}<div class="alert alert--warn" role="status">Dizüstü kopyadan gelen {{ open_conflicts }} değişiklik kararınızı bekliyor: <a href="/ayarlar/cakismalar">Çakışmalar</a></div>{% endif %}
 
 {# Re-fetched when the schedule changes anywhere (Server-Sent Events). #}
-<div id="home" class="home" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar" hx-select="#home" hx-swap="outerHTML">
+<div id="home" class="home" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar, every 60s" hx-select="#home" hx-swap="outerHTML">
 
   <section class="card stack home__day">
     <div class="row row--between">

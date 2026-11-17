@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Notu düzenle · {{ client.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Notu düzenle · {{ client.full_name }}</h1>
+  <a class="btn btn--secondary" href="/danisanlar/{{ client.id }}/notlar#not-{{ note_id }}">← Klinik notlar</a>
+</div>
+{% if conflict %}
+<div class="alert alert--warn" role="alert">Bu not siz düzenlerken başka bir yerde (ör. dizüstü kopyada) değiştirildi.
+  Aşağıda güncel hali var; değişikliğinizi yeniden yapın.</div>
+{% elif errors %}
+<div class="alert alert--error" role="alert">{% for m in errors.values() %}{{ m }} {% endfor %}</div>
+{% endif %}
+<form class="card stack" method="post" action="/danisanlar/{{ client.id }}/notlar/{{ note_id }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="version" value="{{ values.version }}">
+  <div class="form-grid">
+    <div class="field">
+      <label for="kind">Not türü</label>
+      <select id="kind" name="kind" required>
+        {% for code, label in kinds.items() %}<option value="{{ code }}"{% if values.kind == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="noted_at">Tarih ve saat</label>
+      <input id="noted_at" name="noted_at" type="datetime-local" value="{{ values.noted_at or '' }}">
+    </div>
+    <div class="field field--wide">
+      <label for="title">Başlık (isteğe bağlı)</label>
+      <input id="title" name="title" type="text" maxlength="120" value="{{ values.title or '' }}">
+    </div>
+    <div class="field field--wide">
+      <label for="body">Not</label>
+      <textarea id="body" name="body" rows="10" maxlength="20000" required>{{ values.body or '' }}</textarea>
+    </div>
+  </div>
+  <label class="check"><input type="checkbox" name="important" value="1"{% if values.important %} checked{% endif %}> Önemli</label>
+  <div class="form-actions">
+    <button class="btn" type="submit">Kaydet</button>
+    <a class="btn btn--secondary" href="/danisanlar/{{ client.id }}/notlar#not-{{ note_id }}">Vazgeç</a>
+  </div>
+  <p class="muted small">Kaydettiğinizde önceki hali notun geçmişinde saklanır.</p>
+</form>
+{% endblock %}

@@ -10,6 +10,12 @@
   <a class="btn btn--secondary" href="/danisanlar">← Danışanlar</a>
 </div>
 
+{% if client and "sessions.read_own" in user.permissions %}
+<nav class="segments" aria-label="Danışan">
+  <a class="segment" href="/danisanlar/{{ client.id }}" aria-current="page">Bilgiler</a>
+  <a class="segment" href="/danisanlar/{{ client.id }}/notlar">Klinik notlar</a>
+</nav>
+{% endif %}
 {% if saved %}<div class="alert" role="status">Kaydedildi.</div>{% endif %}
 {% if conflict %}
 <div class="alert alert--warn" role="alert">

@@ -175,7 +175,11 @@ def build_router(
             first = day.replace(day=1) - timedelta(days=day.replace(day=1).weekday())
             async with auth.tx(user) as conn:
                 listed = await appointments.in_range(
-                    conn, day, 1, therapist_id=user.id if only_mine else None
+                    conn,
+                    day,
+                    1,
+                    therapist_id=user.id if only_mine else None,
+                    include_cancelled=False,
                 )
                 counts = await appointments.counts_by_day(conn, first, 42)
                 walk = await walk_ins(conn, cipher, day)

@@ -740,11 +740,17 @@ class SessionService:
             status = data.status.value
             values["status"] = status
             changed.append("status")
+        text_changed = False
         for name in ("notes", "homework"):
             if name in sent:
+                old_text = self.cipher.decrypt_optional(getattr(row, f"{name}_encrypted")) or None
+                new_text = getattr(data, name) or None
+                if old_text == new_text:
+                    continue
                 # The audit entry says THAT the text changed, never what it says.
-                values[f"{name}_encrypted"] = self.cipher.encrypt_optional(getattr(data, name))
+                values[f"{name}_encrypted"] = self.cipher.encrypt_optional(new_text)
                 changed.append(name)
+                text_changed = True
         if "next_session_date" in sent and data.next_session_date != row.next_session_date:
             values["next_session_date"] = data.next_session_date
             changed.append("next_session_date")
@@ -764,6 +770,19 @@ class SessionService:
 
         if not changed:
             return current
+        if text_changed and (row.notes_encrypted or row.homework_encrypted):
+            # The previous text is kept (note history); nothing written is ever lost.
+            await conn.execute(
+                insert(t.note_revisions).values(
+                    session_id=session_id,
+                    version=row.version,
+                    body_encrypted=row.notes_encrypted,
+                    homework_encrypted=row.homework_encrypted,
+                    noted_at=row.session_date,
+                    reason="edited",
+                    edited_by=actor.id,
+                )
+            )
         await conn.execute(
             update(s)
             .where(s.c.id == session_id)

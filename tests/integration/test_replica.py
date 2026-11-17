@@ -342,3 +342,29 @@ def test_new_sessions_do_not_make_a_client_look_edited(pair: Pair) -> None:
     assert status.last_error is None and status.conflicts == 0
     assert scalar(pair.office_db, "SELECT count(*) FROM replica_conflicts") == 0
     assert "0532 000 00 00" in pair.office.get(f"/danisanlar/{pair.client}").text
+
+
+def test_notes_and_expenses_made_offline_reach_the_office(pair: Pair) -> None:
+    pair.online[0] = False
+    notes = f"/danisanlar/{pair.client}/notlar"
+    when = datetime.now(ISTANBUL).strftime("%Y-%m-%dT%H:%M")
+    made = pair.laptop.post(
+        notes, {"kind": "phone", "title": "", "body": "Dizüstünde ilk hali", "noted_at": when}
+    )
+    note = made.headers["location"].split("#not-")[1]
+    pair.laptop.post(
+        f"{notes}/{note}",
+        {"kind": "phone", "title": "", "body": "Dizüstünde düzeltildi", "version": "1",
+         "noted_at": when},
+    )  # fmt: skip
+    pair.laptop.post(
+        "/giderler",
+        {"spent_on": day(0).isoformat(), "category": "supplies", "amount": "750",
+         "method": "card", "description": "Test materyali"},
+    )  # fmt: skip
+    pair.online[0] = True
+    status = pair.sync()
+    assert status.last_error is None and status.conflicts == 0
+    page = pair.office.get(notes).text
+    assert "Dizüstünde düzeltildi" in page and "Dizüstünde ilk hali" in page  # with history
+    assert "Test materyali" in pair.office.get("/gelir?donem=ay").text

@@ -23,6 +23,8 @@ from klinik_local.danisanlar.routes import build_router as build_clients_router
 from klinik_local.danisanlar.service import REPLICA_CODE_FLOOR, ClientService
 from klinik_local.gelir.routes import build_router as build_income_router
 from klinik_local.gelir.service import IncomeService
+from klinik_local.notlar.routes import build_router as build_notes_router
+from klinik_local.notlar.service import NoteService
 from klinik_local.ozet_routes import build_router as build_snapshot_router
 from klinik_local.randevular.routes import build_router as build_schedule_router
 from klinik_local.randevular.service import AppointmentService
@@ -55,7 +57,7 @@ NAV = (
     NavItem("Takvim", "/takvim", Permission.SCHEDULE_READ_ALL.value),
     NavItem("Terapiler", "/terapiler", Permission.SESSIONS_READ_OWN.value),
     NavItem("Danışanlar", "/danisanlar", Permission.CLIENTS_READ.value),
-    NavItem("Gelir", "/gelir", Permission.INCOME_READ_OWN.value),
+    NavItem("Gelir-Gider", "/gelir", Permission.INCOME_READ_OWN.value),
     NavItem("Raporlar", "/raporlar", Permission.SESSIONS_READ_OWN.value),
     NavItem("Günlük özet", "/hesap/ozet", Permission.SESSIONS_READ_OWN.value),
     NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
@@ -156,6 +158,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_therapy_api(auth, sessions))
     app.include_router(build_therapy_pages(auth, sessions, clients, templates))
     app.include_router(build_clients_router(auth, clients, templates))
+    notes = NoteService(cipher)
+    app.include_router(build_notes_router(auth, notes, clients, templates))
     if replica:
         if sync_engine is None or not settings.office_url or not settings.replica_token:
             raise ConfigError("laptop sync settings are incomplete")

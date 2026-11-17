@@ -47,11 +47,17 @@ SPECS: tuple[Spec, ...] = (
     Spec("appointments", ("id",), incremental=True, pushable=True),
     Spec("therapy_sessions", ("id",), incremental=True, pushable=True),
     Spec("payments", ("id",), incremental=True, pushable=True),
+    Spec("expenses", ("id",), incremental=True, pushable=True),
+    Spec("client_notes", ("id",), incremental=True, pushable=True),
+    Spec("note_revisions", ("id",), incremental=True, pushable=True),
 )
 BY_NAME = {s.name: s for s in SPECS}
 INCREMENTAL = tuple(s for s in SPECS if s.incremental)
 FULL = tuple(s for s in SPECS if not s.incremental)
-PUSH_ORDER = ("clients", "appointments", "therapy_sessions", "payments")
+PUSH_ORDER = (
+    "clients", "appointments", "therapy_sessions", "payments", "expenses", "client_notes",
+    "note_revisions",
+)  # fmt: skip
 # Removed when absent from the office's full copy (plain link tables).
 FULL_REPLACE = frozenset({"user_permissions", "age_group_therapy_defaults", "recovery_codes"})
 

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Gelir{% endblock %}
+{% block title %}Gelir · Gider{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Gelir · {{ title }}</h1>
+  <h1>{% if spent %}Gelir · Gider{% else %}Gelir{% endif %} · {{ title }}</h1>
   {% if can_export %}<a class="btn btn--secondary" href="/gelir/odemeler.csv?donem={{ kind }}&tarih={{ r.period.first.isoformat() }}">CSV indir</a>{% endif %}
 </div>
 
@@ -33,6 +33,14 @@
 </div>
 
 {% if r.scope == 'own' %}<p class="muted small">Yalnızca kendi seanslarınızın geliri gösterilir.</p>{% endif %}
+
+{% if spent %}
+<div class="kpis kpis--net">
+  <div class="kpi"><span class="kpi__label">Gelir</span><span class="kpi__value">{{ money(r.total) }}</span></div>
+  <div class="kpi"><span class="kpi__label">Gider</span><span class="kpi__value">{{ money(spent.total) }}</span></div>
+  <div class="kpi kpi--{{ 'loss' if net < 0 else 'gain' }}"><span class="kpi__label">Net</span><span class="kpi__value">{{ money(net) }}</span></div>
+</div>
+{% endif %}
 
 <div class="kpis">
   <div class="kpi">
@@ -69,7 +77,25 @@
 </section>
 {% endif %}
 
-{% if kind != 'gun' %}
+{% if months %}
+<section class="card stack">
+  <h2>Aylara göre</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ay</th><th class="num">Gelir</th>{% if spent %}<th class="num">Gider</th><th class="num">Net</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for m in months %}
+        <tr>
+          <td>{{ month_names[m.month.month - 1] }}</td>
+          <td class="num">{{ money(m.income) }}</td>
+          {% if spent %}<td class="num">{{ money(m.expense) }}</td><td class="num{% if m.net < 0 %} is-negative{% endif %}">{{ money(m.net) }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% elif kind != 'gun' %}
 <section class="card stack">
   <h2>Günlere göre</h2>
   <div class="table-wrap">
@@ -114,4 +140,99 @@
   {% endif %}
   {% if can_pay %}<p class="muted small">Ödeme eklemek için takvimden ilgili randevuyu açın.</p>{% endif %}
 </section>
+
+{% if spent %}
+<section class="card stack" id="giderler">
+  <h2>Giderler</h2>
+  {% if expense_notice %}<div class="alert" role="status">{{ expense_notice }}</div>{% endif %}
+  {% if expense_error %}<div class="alert alert--error" role="alert">{{ expense_error }}</div>{% endif %}
+  <form class="form-grid" method="post" action="/giderler" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="donem" value="{{ kind }}">
+    <input type="hidden" name="tarih" value="{{ r.period.first.isoformat() }}">
+    <div class="field">
+      <label for="spent_on">Tarih</label>
+      <input id="spent_on" name="spent_on" type="date" value="{{ today }}" required>
+    </div>
+    <div class="field">
+      <label for="category">Gider türü</label>
+      <select id="category" name="category" required>
+        <option value="">— Seçin —</option>
+        {% for code, label in categories.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="amount">Tutar (₺)</label>
+      <input id="amount" name="amount" type="text" inputmode="decimal" placeholder="ör. 12.500" required>
+    </div>
+    <div class="field">
+      <label for="exp_method">Ödeme şekli</label>
+      <select id="exp_method" name="method" required>
+        {% for code, label in method_labels.items() %}<option value="{{ code }}"{% if code == 'transfer' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field field--wide">
+      <label for="description">Açıklama</label>
+      <input id="description" name="description" type="text" maxlength="200" placeholder="ör. Kasım kirası">
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">+ Gider ekle</button></div>
+  </form>
+
+  {% if spent.by_category %}
+  <h3>Türlere göre</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Gider türü</th><th class="num">Kayıt</th><th class="num">Tutar</th></tr></thead>
+      <tbody>
+        {% for code, amount, count in spent.by_category %}
+        <tr><td>{{ categories.get(code, code) }}</td><td class="num">{{ count }}</td><td class="num">{{ money(amount) }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th>Toplam</th><th class="num">{{ spent.count }}</th><th class="num">{{ money(spent.total) }}</th></tr></tfoot>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if spent.items %}
+  <h3>Gider kayıtları</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tarih</th><th>Tür</th><th>Açıklama</th><th>Şekil</th><th class="num">Tutar</th><th>Kaydeden</th><th></th></tr></thead>
+      <tbody>
+        {% for x in spent.items %}
+        <tr{% if x.voided %} class="is-voided"{% endif %}>
+          <td>{{ x.spent_on.strftime('%d.%m.%Y') }}</td>
+          <td>{{ categories.get(x.category, x.category) }}</td>
+          <td>{{ x.description }}</td>
+          <td>{{ method_labels.get(x.method, x.method) }}</td>
+          <td class="num">{{ money(x.amount) }}</td>
+          <td>{{ x.recorded_by_name }}</td>
+          <td>
+            {% if x.voided %}<span class="badge badge--cancelled">İptal: {{ void_reasons.get(x.void_reason, '') }}</span>
+            {% else %}
+            <details class="void">
+              <summary class="btn btn--small btn--secondary">İptal et</summary>
+              <form class="inline-form" method="post" action="/giderler/{{ x.id }}/iptal">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="donem" value="{{ kind }}">
+                <input type="hidden" name="tarih" value="{{ r.period.first.isoformat() }}">
+                <select name="reason" aria-label="İptal nedeni" required>
+                  {% for code, label in void_reasons.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+                </select>
+                <button class="btn btn--small btn--danger" type="submit">Gideri iptal et</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">Bu dönemde gider kaydı yok.</p>
+  {% endif %}
+  <p class="muted small">Kayıtlı gider değiştirilemez; hatalıysa iptal edip yeniden girin. Giderleri yalnızca yönetici görür.</p>
+</section>
+{% endif %}
 {% endblock %}

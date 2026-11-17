@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Klinik notlar · {{ client.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ client.full_name }} <code class="muted">{{ client.client_code }}</code></h1>
+  <div class="row">
+    <a class="btn btn--secondary" href="/danisanlar/{{ client.id }}">Danışan bilgileri</a>
+    <a class="btn btn--secondary" href="/raporlar/pdf?rapor=danisan&danisan={{ client.id }}&notlar=1" target="_blank">PDF dosya</a>
+  </div>
+</div>
+<nav class="segments" aria-label="Danışan">
+  <a class="segment" href="/danisanlar/{{ client.id }}">Bilgiler</a>
+  <a class="segment" href="/danisanlar/{{ client.id }}/notlar" aria-current="page">Klinik notlar</a>
+</nav>
+<p class="muted small">
+  {% if client.age is not none %}{{ client.age }} yaş · {% endif %}Sorumlu terapist: {{ therapist_name }}
+  · {% if sees_others %}Tüm terapistlerin notları gösterilir.{% else %}Yalnızca sizin notlarınız ve seans kayıtlarınız gösterilir.{% endif %}
+</p>
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+
+{% if can_write %}
+<details class="card note-new"{% if errors %} open{% endif %}>
+  <summary class="btn">+ Yeni not</summary>
+  <form class="stack" method="post" action="/danisanlar/{{ client.id }}/notlar" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if errors %}<div class="alert alert--error" role="alert">{% for m in errors.values() %}{{ m }} {% endfor %}</div>{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label for="kind">Not türü</label>
+        <select id="kind" name="kind" required>
+          {% for code, label in kinds.items() %}<option value="{{ code }}"{% if values.kind == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="noted_at">Tarih ve saat</label>
+        <input id="noted_at" name="noted_at" type="datetime-local" value="{{ values.noted_at or '' }}">
+      </div>
+      <div class="field">
+        <label for="session_id">İlgili seans (isteğe bağlı)</label>
+        <select id="session_id" name="session_id">
+          <option value="">— Yok —</option>
+          {% for sid, label in sessions %}<option value="{{ sid }}"{% if values.session_id == sid|string %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field field--wide">
+        <label for="title">Başlık (isteğe bağlı)</label>
+        <input id="title" name="title" type="text" maxlength="120" value="{{ values.title or '' }}" placeholder="ör. Anne ile telefon görüşmesi">
+      </div>
+      <div class="field field--wide">
+        <label for="body">Not</label>
+        <textarea id="body" name="body" rows="7" maxlength="20000" required>{{ values.body or '' }}</textarea>
+        {% if errors.body %}<div class="field__error">{{ errors.body }}</div>{% endif %}
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="important" value="1"{% if values.important %} checked{% endif %}> Önemli (listede işaretli görünür)</label>
+    <div class="form-actions"><button class="btn" type="submit">Notu kaydet</button></div>
+    <p class="muted small">Notlar şifreli saklanır. Düzenlenen ya da silinen notun önceki hali her zaman geçmişte kalır.</p>
+  </form>
+</details>
+{% endif %}
+
+<form class="note-filters row" method="get" action="/danisanlar/{{ client.id }}/notlar">
+  <select name="tur" aria-label="Tür">
+    <option value="">Tümü</option>
+    {% for code, label in filters.items() %}<option value="{{ code }}"{% if kind == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <input type="search" name="ara" value="{{ query }}" placeholder="Notlarda ara" aria-label="Notlarda ara">
+  <label class="check"><input type="checkbox" name="onemli" value="1"{% if important %} checked{% endif %}> Yalnızca önemli</label>
+  <button class="btn btn--secondary btn--small" type="submit">Filtrele</button>
+  {% if filtered %}<a class="btn btn--secondary btn--small" href="/danisanlar/{{ client.id }}/notlar">Temizle</a>{% endif %}
+</form>
+
+<ol class="note-log">
+  {% for e in entries %}
+  <li class="note{% if e.important %} note--important{% endif %} note--{{ e.kind }}" id="not-{{ e.id }}">
+    <div class="note__head">
+      <span class="badge note__kind">{{ e.kind_label }}</span>
+      {% if e.important %}<span class="badge badge--no_show">Önemli</span>{% endif %}
+      {% if e.status_label %}<span class="badge badge--{{ e.status }}">{{ e.status_label }}</span>{% endif %}
+      <time>{{ local(e.at) }}</time>
+      <span class="muted">· {{ e.author }}</span>
+      <span class="note__actions">
+        {% if e.kind == 'session' %}
+        <a class="btn btn--small btn--secondary" href="/terapiler/{{ e.id }}">Seans kaydı</a>
+        {% elif can_write and e.author_id == user.id %}
+        <a class="btn btn--small btn--secondary" href="/danisanlar/{{ client.id }}/notlar/{{ e.id }}/duzenle">Düzenle</a>
+        <details class="void">
+          <summary class="btn btn--small btn--secondary">Sil</summary>
+          <form class="inline-form" method="post" action="/danisanlar/{{ client.id }}/notlar/{{ e.id }}/sil">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <span class="small">Not listeden kalkar; metni geçmişte saklanır.</span>
+            <button class="btn btn--small btn--danger" type="submit">Evet, sil</button>
+          </form>
+        </details>
+        {% endif %}
+      </span>
+    </div>
+    {% if e.title %}<h3 class="note__title">{{ e.title }}</h3>{% endif %}
+    {% if e.methods %}<p class="muted small">Yöntemler: {{ e.methods }}</p>{% endif %}
+    {% if e.body %}<div class="note__body">{{ e.body }}</div>
+    {% elif e.kind == 'session' %}<p class="muted small">Bu seansa not yazılmamış.</p>{% endif %}
+    {% if e.homework %}<div class="note__homework"><strong>Ödev:</strong> {{ e.homework }}</div>{% endif %}
+    {% if e.revisions %}
+    <details class="note__history">
+      <summary class="small">Geçmiş ({{ e.revisions|length }} önceki sürüm)</summary>
+      {% for r in e.revisions %}
+      <div class="note__revision">
+        <div class="muted small">{{ local(r.edited_at) }} · {{ r.edited_by }} · {% if r.reason == 'deleted' %}silinmeden önceki hali{% else %}düzenlenmeden önceki hali (sürüm {{ r.version }}){% endif %}</div>
+        {% if r.title %}<strong>{{ r.title }}</strong>{% endif %}
+        <div class="note__body">{{ r.body }}</div>
+        {% if r.homework %}<div class="note__homework"><strong>Ödev:</strong> {{ r.homework }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </details>
+    {% endif %}
+  </li>
+  {% else %}
+  <li class="empty">{% if filtered %}Bu filtreyle eşleşen kayıt yok.{% else %}Bu danışan için henüz not veya seans kaydı yok.{% endif %}</li>
+  {% endfor %}
+</ol>
+{% endblock %}
