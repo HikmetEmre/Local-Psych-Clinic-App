@@ -27,6 +27,7 @@ dev = [
     "playwright>=1.49",
     "pyyaml>=6.0.3",
     "types-pyyaml>=6.0.12.20261113",
+    "pypdf>=5",
 ]
 
 [tool.pytest.ini_options]
@@ -59,16 +60,24 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 # Embeds a JavaScript program as a string.
 "tests/integration/test_snapshot.py" = ["E501"]
 "apps/local/klinik_local/jobs/**" = ["ASYNC240", "ASYNC221", "S603", "S607"]
+# Report layouts: table rows read best one per line.
+"apps/local/klinik_local/raporlar/reports.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-packages = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
+packages = ["klinik_shared", "klinik_local"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
+known-first-party = ["klinik_shared", "klinik_local"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*", "pywebpush", "pywebpush.*", "pyrage", "pyrage.*"]
+module = ["asyncpg", "asyncpg.*", "pywebpush", "pywebpush.*", "pyrage", "pyrage.*", "reportlab.*"]
 ignore_missing_imports = true
+
+# ReportLab has no type information: its classes are subclassed as Any.
+[[tool.mypy.overrides]]
+module = ["klinik_local.raporlar.*"]
+disallow_subclassing_any = false
+warn_return_any = false

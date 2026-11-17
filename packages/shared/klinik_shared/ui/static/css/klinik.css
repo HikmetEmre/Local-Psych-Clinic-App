@@ -1531,3 +1531,13 @@ meter.bar::-moz-meter-bar {
 @media (hover: none) {
   .month__add { display: block; opacity: 0.8; }
 }
+
+/* ---------------------------------------------------------------- reports */
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.report-grid .card { margin: 0; }
+label.check { display: flex; gap: 0.5rem; align-items: center; font-size: 0.92rem; }

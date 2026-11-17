@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Raporlar{% endblock %}
+{% macro period(prefix) %}
+<div class="field">
+  <label for="{{ prefix }}_donem">Dönem</label>
+  <select id="{{ prefix }}_donem" name="donem">
+    <option value="" selected>Tarih aralığı (aşağıda)</option>
+    {% for code, label in presets.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+  </select>
+</div>
+<div class="field">
+  <label for="{{ prefix }}_baslangic">Başlangıç</label>
+  <input id="{{ prefix }}_baslangic" name="baslangic" type="date" value="{{ first }}">
+</div>
+<div class="field">
+  <label for="{{ prefix }}_bitis">Bitiş</label>
+  <input id="{{ prefix }}_bitis" name="bitis" type="date" value="{{ last }}">
+</div>
+{% endmacro %}
+{% macro therapist_choice(prefix, all_label) %}
+<div class="field">
+  <label for="{{ prefix }}_terapist">Terapist</label>
+  <select id="{{ prefix }}_terapist" name="terapist">
+    <option value="">{{ all_label }}</option>
+    {% for th in therapists %}<option value="{{ th.id }}">{{ th.label }}</option>{% endfor %}
+  </select>
+</div>
+{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <h1>Raporlar</h1>
+</div>
+{% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+<p class="muted">Raporlar PDF olarak yeni sekmede açılır; oradan kaydedebilir veya yazdırabilirsiniz.
+  Raporlar kişisel sağlık verisi içerir: paylaşırken dikkat edin. Her rapor oluşturma kayıt altına alınır.
+  Dönem olarak "Bu ay", "Geçen ay" gibi hazır bir seçim yaparsanız tarih alanları dikkate alınmaz.</p>
+
+<div class="report-grid">
+  {% if 'seanslar' in kinds %}
+  <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
+    <input type="hidden" name="rapor" value="seanslar">
+    <h2>Seans raporu</h2>
+    <p class="muted small">Dönemdeki seanslar: durumlar, toplam süre, kullanılan yöntemler, biçim ve yaş grupları, seans listesi.{% if not sees_all %} Yalnızca sizin seanslarınız.{% endif %}</p>
+    <div class="form-grid">
+      {{ period('s') }}
+      {% if sees_all %}{{ therapist_choice('s', 'Tüm terapistler') }}{% endif %}
+    </div>
+    <label class="check"><input type="checkbox" name="notlar" value="1"> Seans notlarını ve ödevleri ekle</label>
+    <div class="form-actions"><button class="btn" type="submit">PDF oluştur</button></div>
+  </form>
+  {% endif %}
+
+  {% if 'danisan' in kinds %}
+  <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
+    <input type="hidden" name="rapor" value="danisan">
+    <h2>Danışan dosyası</h2>
+    <p class="muted small">Bir danışanın kimlik ve iletişim bilgileri, tüm seans geçmişi, randevuları ve ödemeleri.{% if not sees_all %} Yalnızca sizin seans kayıtlarınız yer alır.{% endif %}</p>
+    <div class="form-grid">
+      <div class="field">
+        <label for="d_danisan">Danışan</label>
+        <select id="d_danisan" name="danisan" required>
+          <option value="">— Seçin —</option>
+          {% for c in people %}<option value="{{ c.id }}">{{ c.full_name }} · {{ c.client_code }}{% if not c.is_active %} (pasif){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="notlar" value="1" checked> Seans notlarını ve ödevleri ekle</label>
+    <div class="form-actions"><button class="btn" type="submit">PDF oluştur</button></div>
+  </form>
+  {% endif %}
+
+  {% if 'randevular' in kinds %}
+  <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
+    <input type="hidden" name="rapor" value="randevular">
+    <h2>Randevu listesi</h2>
+    <p class="muted small">Gün gün randevular: saat, danışan, terapist, oda ve durum. Yazdırıp masada kullanmak için uygundur.</p>
+    <div class="form-grid">
+      {{ period('r') }}
+      {{ therapist_choice('r', 'Tümü') }}
+      <div class="field">
+        <label for="r_oda">Oda</label>
+        <select id="r_oda" name="oda">
+          <option value="">Tümü</option>
+          {% for room in rooms %}<option value="{{ room.id }}">{{ room.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <input type="hidden" name="iptaller" value="0">
+    <label class="check"><input type="checkbox" name="iptaller" value="1" checked> İptal edilenleri de göster</label>
+    <div class="form-actions"><button class="btn" type="submit">PDF oluştur</button></div>
+  </form>
+  {% endif %}
+
+  {% if 'gelir' in kinds %}
+  <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
+    <input type="hidden" name="rapor" value="gelir">
+    <h2>Gelir raporu</h2>
+    <p class="muted small">Toplam gelir, ödeme yöntemleri{% if income_all %}, terapistlere göre dağılım{% endif %}, günlük gelir ve tüm ödemelerin listesi (iptaller dahil).{% if not income_all %} Yalnızca sizin gelirleriniz.{% endif %}</p>
+    <div class="form-grid">
+      {{ period('g') }}
+      {% if income_all %}{{ therapist_choice('g', 'Tüm klinik') }}{% endif %}
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">PDF oluştur</button></div>
+  </form>
+  {% endif %}
+
+  {% if 'istatistik' in kinds %}
+  <form class="card stack" method="get" action="/raporlar/pdf" target="_blank">
+    <input type="hidden" name="rapor" value="istatistik">
+    <h2>Randevu istatistikleri</h2>
+    <p class="muted small">Katılım, gelmeme ve iptal oranları; terapist, gün, saat ve odaya göre yoğunluk; yeni danışanlar.</p>
+    <div class="form-grid">
+      {{ period('i') }}
+      {{ therapist_choice('i', 'Tüm klinik') }}
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">PDF oluştur</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -24,6 +24,7 @@ from klinik_local.gelir.service import IncomeService
 from klinik_local.ozet_routes import build_router as build_snapshot_router
 from klinik_local.randevular.routes import build_router as build_schedule_router
 from klinik_local.randevular.service import AppointmentService
+from klinik_local.raporlar.routes import build_router as build_reports_router
 from klinik_local.terapiler.api import build_api_router as build_therapy_api
 from klinik_local.terapiler.routes import build_router as build_therapy_pages
 from klinik_local.terapiler.service import SessionService
@@ -49,6 +50,7 @@ NAV = (
     NavItem("Terapiler", "/terapiler", Permission.SESSIONS_READ_OWN.value),
     NavItem("Danışanlar", "/danisanlar", Permission.CLIENTS_READ.value),
     NavItem("Gelir", "/gelir", Permission.INCOME_READ_OWN.value),
+    NavItem("Raporlar", "/raporlar", Permission.SESSIONS_READ_OWN.value),
     NavItem("Günlük özet", "/hesap/ozet", Permission.SESSIONS_READ_OWN.value),
     NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
 )
@@ -118,6 +120,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_schedule_router(auth, appointments, clients, income, templates))
     app.include_router(build_income_router(auth, income, appointments, templates))
     app.include_router(build_rooms_router(auth, appointments, templates))
+    app.include_router(build_reports_router(auth, cipher, clients, appointments, templates))
 
     sessions = SessionService(cipher)
     app.state.sessions = sessions

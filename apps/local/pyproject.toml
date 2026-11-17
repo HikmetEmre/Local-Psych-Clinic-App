@@ -2,7 +2,10 @@
 name = "klinik-local"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["klinik-shared"]
+dependencies = [
+    "klinik-shared",
+    "reportlab>=4.2",
+]
 
 [tool.uv.sources]
 klinik-shared = { workspace = true }
