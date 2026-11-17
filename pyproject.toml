@@ -26,6 +26,7 @@ dev = [
     "mypy>=1.13",
     "testcontainers>=4.8",
     "pillow>=10",
+    "playwright>=1.49",
 ]
 
 [tool.pytest.ini_options]

@@ -57,7 +57,7 @@
     <div class="field">
       <label for="status">Durum</label>
       <select id="status" name="status">
-        {% if not session_id %}<option value="">Otomatik (geçmiş: Tamamlandı, gelecek: Planlandı)</option>{% endif %}
+        {% if not session_id %}<option value="">Otomatik (tarihe göre)</option>{% endif %}
         {% for code, label in statuses %}
         <option value="{{ code }}"{% if values.status == code %} selected{% endif %}>{{ label }}</option>
         {% endfor %}

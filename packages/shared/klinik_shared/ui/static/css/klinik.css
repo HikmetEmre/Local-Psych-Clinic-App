@@ -1041,3 +1041,53 @@ table.matrix td:not(:first-child),
 table.matrix th:not(:first-child) {
   text-align: center;
 }
+
+/* Absolutely positioned helpers (.sr-only, hidden inputs) must stay inside their box:
+   without a positioned parent they escape the table's scroll area and widen the page. */
+.table-wrap,
+.chip-check,
+.method__star,
+th,
+td {
+  position: relative;
+}
+
+.sr-only {
+  top: 0;
+  left: 0;
+}
+
+.pager__sizes a,
+.pager__sizes strong {
+  margin-left: 6px;
+}
+
+.group-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 100px 100px 80px 70px 80px 110px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--beige-100);
+}
+
+.group-grid--head {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brown-800);
+  border-bottom: 1px solid var(--beige-300);
+}
+
+@media (max-width: 760px) {
+  .group-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .group-grid > :first-of-type {
+    grid-column: 1 / -1;
+  }
+
+  .group-grid--head {
+    display: none;
+  }
+}

@@ -152,7 +152,7 @@
     {% endfor %}
     {% if page.page < page.pages %}<a href="{{ link(params, page=page.page + 1) }}" aria-label="Sonraki">›</a>{% endif %}
   </nav>
-  <span class="muted">Sayfa başına:
+  <span class="muted pager__sizes">Sayfa başına:
     {% for size in page_sizes %}
     {% if size == page.page_size %}<strong>{{ size }}</strong>{% else %}<a href="{{ link(params, page_size=size, page=None) }}">{{ size }}</a>{% endif %}
     {% endfor %}
