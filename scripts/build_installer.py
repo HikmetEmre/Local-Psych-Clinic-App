@@ -1,9 +1,9 @@
-"""Build the Windows installer for the office laptop (native, no Docker).
+"""Build the Windows installer (main computer and connected computers; native, no Docker).
 
     uv run python scripts/build_installer.py            # stage + verify + compile
     uv run python scripts/build_installer.py --no-verify
 
-Output: dist/NilPsikoloji-KlinikKasa-Kurulum-<version>.exe
+Output: dist/NilPsikoloji-Klinik-Kurulum-<version>.exe
 
 Contents: embeddable Python 3.12 with the office apps installed, PostgreSQL 16 binaries,
 WinSW (Windows service wrapper), rclone (Google Drive), the setup scripts, and the clinic's
@@ -27,7 +27,7 @@ BUILD = ROOT / "build"
 CACHE = BUILD / "cache"
 STAGE = BUILD / "stage"
 DIST = ROOT / "dist"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 PYTHON_VERSION = "3.12.8"
 POSTGRES_VERSION = "16.12"
@@ -191,7 +191,7 @@ def compile_installer() -> Path:
     DIST.mkdir(exist_ok=True)
     run(iscc, "/Q", f"/DStage={STAGE}", f"/DAppVersion={VERSION}", f"/DOutDir={DIST}",
         ROOT / "installer" / "klinik.iss")  # fmt: skip
-    return DIST / f"NilPsikoloji-KlinikKasa-Kurulum-{VERSION}.exe"
+    return DIST / f"NilPsikoloji-Klinik-Kurulum-{VERSION}.exe"
 
 
 def main() -> None:

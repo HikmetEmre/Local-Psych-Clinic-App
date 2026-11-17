@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Ajandam{% endblock %}
+{% block page_class %} page--wide{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Ajandam <span class="muted">· {{ title }}</span></h1>
+  <a class="btn" href="/ajanda/yeni?baslangic={{ day.isoformat() }}T{{ '09:00' }}">+ Yeni plan</a>
+</div>
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+
+<div class="cal-toolbar ag-toolbar">
+  <div class="row">
+    <a class="btn btn--secondary btn--small" href="{{ url(gun=prev) }}" aria-label="Önceki">‹</a>
+    <a class="btn btn--secondary btn--small" href="{{ url(gun=today.isoformat()) }}">Bugün</a>
+    <a class="btn btn--secondary btn--small" href="{{ url(gun=next) }}" aria-label="Sonraki">›</a>
+  </div>
+  <nav class="segments segments--tight" aria-label="Görünüm">
+    {% for code, label in views.items() %}
+    <a class="segment" href="{{ url(gorunum=code) }}"{% if view == code %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <div class="row ag-toggles">
+    <a class="ag-toggle{% if show_appts %} is-on{% endif %}" href="{{ url(randevular='1' if not show_appts else '0') }}"><span class="ag-dot ag-ev--appt"></span>Klinik randevularım ({{ count_appts }})</a>
+    <a class="ag-toggle{% if show_plans %} is-on{% endif %}" href="{{ url(planlar='1' if not show_plans else '0') }}"><span class="ag-dot ag-ev--personal"></span>Planlarım ({{ count_plans }})</a>
+  </div>
+</div>
+<div class="legend ag-legend">
+  <span class="legend__item"><span class="ag-dot ag-ev--appt"></span>Klinik randevusu</span>
+  {% for code, label in categories.items() %}<span class="legend__item"><span class="ag-dot ag-ev--{{ code }}"></span>{{ label }}</span>{% endfor %}
+</div>
+
+{# Re-fetched when the clinic schedule changes (an appointment booked in her name). #}
+<div id="ajanda" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar, every 60s" hx-select="#ajanda" hx-swap="outerHTML">
+
+{% if view in ('hafta', 'gun') %}
+<div class="ag ag--{{ view }}">
+  <div class="ag__row ag__head">
+    <div class="ag__gutter"></div>
+    {% for col in columns %}
+    <div class="ag__dayhead{% if col.is_today %} is-today{% endif %}">
+      <a href="{{ url(gorunum='gun', gun=col.day.isoformat()) }}"><span class="ag__wd">{{ weekdays[col.day.weekday()] }}</span> <strong>{{ col.day.day }} {{ months[col.day.month - 1][:3] }}</strong></a>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="ag__row ag__alldayrow">
+    <div class="ag__gutter muted small">Tüm gün</div>
+    {% for col in columns %}
+    <div class="ag__allday{% if col.is_today %} is-today{% endif %}">
+      {% for i in col.all_day %}<a class="ag-chip {{ i.css }}" href="{{ i.url }}" title="{{ i.title }}">{{ i.title }}</a>{% endfor %}
+      <a class="ag__add" href="/ajanda/yeni?baslangic={{ col.day.isoformat() }}&tumgun=1" aria-label="{{ col.day.strftime('%d.%m') }} için tüm gün plan ekle">+</a>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="ag__row ag__body">
+    <div class="ag__gutter">
+      {% for h in hours %}<div class="ag__hour">{{ '%02d' % h }}:00</div>{% endfor %}
+    </div>
+    {% for col in columns %}
+    <div class="ag__col{% if col.is_today %} is-today{% endif %}">
+      {% for h in hours %}<a class="ag__slot" href="/ajanda/yeni?baslangic={{ col.day.isoformat() }}T{{ '%02d' % h }}:00" aria-label="{{ col.day.strftime('%d.%m') }} {{ '%02d' % h }}:00 için plan ekle"></a>{% endfor %}
+      {% for p in col.timed %}
+      <a class="ag-ev {{ p.item.css }} {{ p.css }}" href="{{ p.item.url }}" title="{{ p.item.time_text }} · {{ p.item.title }}{% if p.item.location %} · {{ p.item.location }}{% endif %}{% if p.item.room %} · {{ p.item.room }}{% endif %}">
+        <span class="ag-ev__time">{% if p.clipped_before %}↑ {% endif %}{{ p.item.time_text }}{% if p.item.repeat != 'none' %} ↻{% endif %}{% if p.clipped_after %} ↓{% endif %}</span>
+        <span class="ag-ev__title">{{ p.item.title }}</span>
+        {% if p.item.kind == 'appointment' %}<span class="ag-ev__meta">{{ p.item.room }} · Seans</span>
+        {% elif p.item.location %}<span class="ag-ev__meta">{{ p.item.location }}</span>{% endif %}
+      </a>
+      {% endfor %}
+      {% if col.is_today and now_q is not none %}<div class="ag-now ag-t-{{ now_q }}" aria-hidden="true"></div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<p class="muted small">Boş bir saate tıklayınca o saate plan eklenir. Klinik randevusuna tıklayınca randevu açılır. ↻ tekrarlanan plan.</p>
+
+{% elif view == 'ay' %}
+<table class="ag-month">
+  <thead><tr>{% for w in weekdays %}<th scope="col">{{ w }}</th>{% endfor %}</tr></thead>
+  <tbody>
+    {% for week in weeks %}
+    <tr>
+      {% for d in week %}{% set list = by_day.get(d, []) %}
+      <td class="ag-month__cell{% if d.month != day.month %} is-outside{% endif %}{% if d == today %} is-today{% endif %}">
+        <div class="ag-month__top">
+          <a class="ag-month__num" href="{{ url(gorunum='gun', gun=d.isoformat()) }}">{{ d.day }}</a>
+          <a class="ag__add" href="/ajanda/yeni?baslangic={{ d.isoformat() }}" aria-label="{{ d.strftime('%d.%m') }} için plan ekle">+</a>
+        </div>
+        {% for i in list[:shown] %}
+        <a class="ag-chip {{ i.css }}" href="{{ i.url }}" title="{{ i.time_text }} · {{ i.title }}">{% if not i.all_day %}<span class="ag-chip__time">{{ i.local_start.strftime('%H:%M') }}</span> {% endif %}{{ i.title }}</a>
+        {% endfor %}
+        {% if list|length > shown %}<a class="ag-month__more" href="{{ url(gorunum='gun', gun=d.isoformat()) }}">+{{ list|length - shown }} daha</a>{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% else %}
+<div class="ag-agenda">
+  {% for d, list in agenda %}
+  <section class="card ag-agenda__day{% if d == today %} is-today{% endif %}">
+    <h2>{{ d.day }} {{ months[d.month - 1] }}, {{ weekdays[d.weekday()] }}</h2>
+    <ul class="plain-list">
+      {% for i in list %}
+      <li class="ag-agenda__item">
+        <span class="ag-dot {{ i.css }}"></span>
+        <span class="ag-agenda__time">{{ i.time_text }}</span>
+        <a href="{{ i.url }}">{{ i.title }}</a>
+        <span class="muted small">{% if i.kind == 'appointment' %}Klinik randevusu · {{ i.room }}{% else %}{{ categories.get(i.category, '') }}{% if i.location %} · {{ i.location }}{% endif %}{% if i.repeat != 'none' %} · ↻{% endif %}{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% else %}
+  <p class="empty">Önümüzdeki 30 günde randevu veya plan yok.</p>
+  {% endfor %}
+</div>
+{% endif %}
+</div>
+{% endblock %}

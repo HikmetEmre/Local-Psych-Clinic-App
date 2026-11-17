@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{% if plan_id %}Planı düzenle{% else %}Yeni plan{% endif %} · Ajandam{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% if plan_id %}Planı düzenle{% else %}Yeni plan{% endif %}</h1>
+  <a class="btn btn--secondary" href="{{ back }}">← Ajandam</a>
+</div>
+{% if conflict %}
+<div class="alert alert--warn" role="alert">Bu plan başka bir sekmede değiştirildi. Aşağıda güncel hali var; değişikliğinizi yeniden yapın.</div>
+{% elif errors %}
+<div class="alert alert--error" role="alert">{% for m in errors.values() %}{{ m }} {% endfor %}</div>
+{% endif %}
+
+<form class="card stack" method="post" action="{% if plan_id %}/ajanda/{{ plan_id }}{% else %}/ajanda{% endif %}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if plan_id %}<input type="hidden" name="version" value="{{ values.version }}">{% endif %}
+  <div class="form-grid">
+    <div class="field field--wide">
+      <label for="title">Başlık</label>
+      <input id="title" name="title" type="text" maxlength="120" value="{{ values.title or '' }}" required placeholder="ör. Süpervizyon, Muhasebeci ile görüşme">
+      {% if errors.title %}<div class="field__error">{{ errors.title }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="category">Tür</label>
+      <select id="category" name="category">
+        {% for code, label in categories.items() %}<option value="{{ code }}"{% if values.category == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="location">Yer (isteğe bağlı)</label>
+      <input id="location" name="location" type="text" maxlength="120" value="{{ values.location or '' }}">
+    </div>
+    <div class="field field--wide">
+      <label class="check"><input type="checkbox" name="all_day" value="1"{% if values.all_day %} checked{% endif %}> Tüm gün (saatler dikkate alınmaz)</label>
+    </div>
+    <div class="field">
+      <label for="start_date">Başlangıç</label>
+      <div class="row">
+        <input id="start_date" name="start_date" type="date" value="{{ values.start_date or '' }}" required>
+        <input aria-label="Başlangıç saati" name="start_time" type="time" step="300" value="{{ values.start_time or '' }}">
+      </div>
+      {% if errors.start_date or errors.start_time %}<div class="field__error">{{ errors.start_date or errors.start_time }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="end_date">Bitiş</label>
+      <div class="row">
+        <input id="end_date" name="end_date" type="date" value="{{ values.end_date or '' }}" required>
+        <input aria-label="Bitiş saati" name="end_time" type="time" step="300" value="{{ values.end_time or '' }}">
+      </div>
+      {% if errors.ends_at %}<div class="field__error">{{ errors.ends_at }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="repeat">Tekrar</label>
+      <select id="repeat" name="repeat">
+        {% for code, label in repeats.items() %}<option value="{{ code }}"{% if values.repeat == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="repeat_until">Tekrar bitişi</label>
+      <input id="repeat_until" name="repeat_until" type="date" value="{{ values.repeat_until or '' }}">
+      {% if errors.repeat_until %}<div class="field__error">{{ errors.repeat_until }}</div>{% endif %}
+    </div>
+    <div class="field field--wide">
+      <label for="note">Not (isteğe bağlı)</label>
+      <textarea id="note" name="note" rows="4" maxlength="5000">{{ values.note or '' }}</textarea>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn" type="submit">Kaydet</button>
+    <a class="btn btn--secondary" href="{{ back }}">Vazgeç</a>
+  </div>
+  <p class="muted small">Ajandam yalnızca size görünür. Başlık, yer ve not şifreli saklanır; planlar diğer bilgisayarlara gönderilmez.
+    {% if plan_id and values.repeat != 'none' %}Değişiklik tüm tekrarlara uygulanır.{% endif %}</p>
+</form>
+
+{% if plan_id %}
+<section class="card stack">
+  <h2>Sil</h2>
+  <div class="row">
+    {% if values.repeat != 'none' and occurrence %}
+    <form method="post" action="/ajanda/{{ plan_id }}/sil">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="kapsam" value="bu">
+      <input type="hidden" name="tarih" value="{{ occurrence }}">
+      <button class="btn btn--secondary" type="submit">Yalnızca bu tekrarı sil ({{ occurrence }})</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/ajanda/{{ plan_id }}/sil">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="kapsam" value="hepsi">
+      <button class="btn btn--danger" type="submit">{% if values.repeat != 'none' %}Tüm tekrarları sil{% else %}Planı sil{% endif %}</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

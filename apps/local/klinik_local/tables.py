@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from klinik_shared.authkit.tables import build_audit_table, build_auth_tables
@@ -230,4 +231,25 @@ note_revisions = Table(
     Column("edited_by", _uuid, ForeignKey("users.id"), nullable=False),
     Column("edited_at", _tz, nullable=False, server_default=text("now()")),
     Column("change_seq", BigInteger, nullable=False, server_default=text("0")),
+)
+
+personal_events = Table(
+    "personal_events",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("owner_id", _uuid, ForeignKey("users.id"), nullable=False),
+    Column("category", Text, nullable=False),
+    Column("title_encrypted", LargeBinary, nullable=False),
+    Column("location_encrypted", LargeBinary),
+    Column("note_encrypted", LargeBinary),
+    Column("all_day", Boolean, nullable=False, server_default=text("false")),
+    Column("starts_at", _tz, nullable=False),
+    Column("ends_at", _tz, nullable=False),
+    Column("repeat", Text, nullable=False, server_default=text("'none'")),
+    Column("repeat_until", Date),
+    Column("skip_dates", ARRAY(Date), nullable=False, server_default=text("'{}'")),
+    Column("version", Integer, nullable=False, server_default=text("1")),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
+    Column("deleted_at", _tz),
 )

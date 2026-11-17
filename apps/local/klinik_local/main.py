@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from klinik_local import tables as t
+from klinik_local.ajanda.routes import build_router as build_diary_router
+from klinik_local.ajanda.service import PlanService
 from klinik_local.anasayfa import build_router as build_home_router
 from klinik_local.ayarlar.katalog import build_router as build_catalog_router
 from klinik_local.ayarlar.odalar import build_router as build_rooms_router
@@ -54,6 +56,8 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 NAV = (
     NavItem("Ana sayfa", "/", None),
+    # The clinic owner's own diary (admin only).
+    NavItem("Ajandam", "/ajanda", Permission.ADMIN_USERS.value),
     NavItem("Takvim", "/takvim", Permission.SCHEDULE_READ_ALL.value),
     NavItem("Terapiler", "/terapiler", Permission.SESSIONS_READ_OWN.value),
     NavItem("Danışanlar", "/danisanlar", Permission.CLIENTS_READ.value),
@@ -63,7 +67,7 @@ NAV = (
     NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
 )
 # The laptop copy: no daily snapshot (made at the office), settings = sync status.
-REPLICA_NAV = tuple(item for item in NAV if item.href != "/hesap/ozet")
+REPLICA_NAV = tuple(item for item in NAV if item.href not in ("/hesap/ozet", "/ajanda"))
 REPLICA_TIER = Tier(
     service="klinik-local",
     app_name="Klinik",
@@ -176,6 +180,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Office only: administration, backups, snapshot, and the laptop's sync API.
     app.include_router(build_users_router(auth, templates))
     app.include_router(build_rooms_router(auth, appointments, templates))
+    app.include_router(build_diary_router(auth, PlanService(cipher), templates))
     app.include_router(build_catalog_router(auth, templates))
     app.include_router(build_backup_router(auth, templates))
     app.include_router(build_snapshot_router(auth, cipher, templates))
