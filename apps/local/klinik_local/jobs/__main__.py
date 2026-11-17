@@ -45,7 +45,7 @@ async def snapshot(settings: JobSettings) -> int:
 
 
 async def scheduler(settings: JobSettings) -> None:
-    """02:30 nightly backup, hourly 09-21, snapshot at 17:00, cloud copy Sunday 03:30."""
+    """02:30 nightly backup, hourly 09-21, snapshot at 17:00."""
     done: dict[str, str] = {}
     log.info("jobs scheduler started")
 
@@ -72,8 +72,6 @@ async def scheduler(settings: JobSettings) -> None:
             await once("hourly", f"{day}-{now.hour}", run_backup(settings, "hourly"))
         if now.hour >= settings.snapshot_hour:
             await once("snapshot", day, snapshot(settings))
-        if settings.cloud_dump_url and now.isoweekday() == 7 and hhmm >= "0330":
-            await once("cloud", day, run_backup(settings, "cloud"))
         await asyncio.sleep(30)
 
 
@@ -82,7 +80,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("run", help="scheduler (runs as the KlinikJobs service)")
     backup = sub.add_parser("backup", help="one backup now")
-    backup.add_argument("kind", choices=["daily", "hourly", "cloud"])
+    backup.add_argument("kind", choices=["daily", "hourly"])
     sub.add_parser("snapshot", help="write the daily snapshots now")
     restore = sub.add_parser("restore-test", help="monthly restore test")
     restore.add_argument("--identity", required=True, type=Path, help="offline age key file")

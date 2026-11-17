@@ -23,13 +23,12 @@ def test_published_ports_are_bound_to_localhost_only() -> None:
 
 
 def test_long_running_services_restart_by_themselves() -> None:
-    for name in ("local-db", "local-app", "sync-worker", "backup"):
+    for name in ("local-db", "local-app", "backup"):
         assert SERVICES[name]["restart"] == "unless-stopped", name
 
 
 def test_the_app_and_worker_do_not_use_the_owner_role() -> None:
     assert "kasa_app:" in SERVICES["local-app"]["environment"]["LOCAL_DATABASE_URL"]
-    assert "kasa_sync:" in SERVICES["sync-worker"]["environment"]["SYNC_LOCAL_DATABASE_URL"]
     assert SERVICES["backup"]["environment"]["PGUSER"] == "kasa_backup"
 
 

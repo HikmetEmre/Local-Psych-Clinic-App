@@ -90,11 +90,3 @@ def local_db(fresh_database: str) -> object:
     from support.local import prepare_local_db
 
     return prepare_local_db(fresh_database)
-
-
-@pytest.fixture
-def cloud_db(database_factory: Callable[[], str]) -> object:
-    """A migrated cloud-tier database (schema "app"), separate from ``local_db``."""
-    from support.cloud import prepare_cloud_db
-
-    return prepare_cloud_db(database_factory())

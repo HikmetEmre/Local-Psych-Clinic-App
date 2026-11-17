@@ -1,14 +1,90 @@
 {% extends "base.html" %}
+{% block title %}Ana sayfa{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Hoş geldiniz, {{ user.display_name }}</h1>
+  <h1>{{ day_title }}</h1>
+  {% if can_book %}<a class="btn" href="/randevular/yeni?baslangic={{ day.isoformat() }}T10:00&geri=home">+ Yeni Randevu</a>{% endif %}
 </div>
-{% if sync_banner %}<div class="alert alert--warn" role="status">{{ sync_banner }}</div>{% endif %}
-<div class="tiles">
-  {% for item in nav %}
-  {% if not item.permission or item.permission in user.permissions %}
-  <a class="tile" href="{{ item.href }}"><strong>{{ item.label }}</strong></a>
-  {% endif %}
-  {% endfor %}
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+
+{# Re-fetched when the schedule changes anywhere (Server-Sent Events). #}
+<div id="home" class="home" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar" hx-select="#home" hx-swap="outerHTML">
+
+  <section class="card stack home__day">
+    <div class="row row--between">
+      <h2>Günün randevuları{% if appointments %} <span class="muted">({{ active_count }})</span>{% endif %}</h2>
+      {% if is_therapist %}
+      <nav class="segments segments--tight" aria-label="Kimin randevuları">
+        <a class="segment" href="/?gun={{ day.isoformat() }}&kim=benim"{% if only_mine %} aria-current="page"{% endif %}>Benim</a>
+        <a class="segment" href="/?gun={{ day.isoformat() }}&kim=hepsi"{% if not only_mine %} aria-current="page"{% endif %}>Tüm klinik</a>
+      </nav>
+      {% endif %}
+    </div>
+    {% if appointments %}
+    <div class="table-wrap">
+      <table class="day-list">
+        <thead><tr><th>Saat</th><th>Danışan</th><th>Terapist</th><th>Oda</th><th>Durum</th><th>Seans</th>{% if paid_visible %}<th class="num">Ödeme</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for a in appointments %}
+          {% set start = to_istanbul(a.starts_at) %}{% set end = to_istanbul(a.ends_at) %}
+          <tr{% if a.status == 'cancelled' %} class="is-voided"{% endif %}>
+            <td class="nowrap"><a href="/randevular/{{ a.id }}">{{ start.strftime('%H:%M') }}–{{ end.strftime('%H:%M') }}</a></td>
+            <td><a href="/randevular/{{ a.id }}">{{ a.client_name }}</a> <code class="muted small">{{ a.client_code }}</code></td>
+            <td>{{ a.therapist_name }}</td>
+            <td>{{ a.room_label }}</td>
+            <td><span class="badge badge--{{ a.status }}">{{ status_labels.get(a.status, a.status) }}</span></td>
+            <td>
+              {% if a.session_id %}<a href="/terapiler/{{ a.session_id }}">Seans kaydı</a>
+              {% elif can_record and a.therapist_id == user.id and a.status != 'cancelled' %}<a class="btn btn--small" href="/terapiler/yeni?randevu={{ a.id }}">Seansı kaydet</a>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            {% if paid_visible %}<td class="num">{% if a.id in paid_visible %}{% if paid.get(a.id) %}{{ money(paid[a.id]) }}{% else %}<span class="muted">—</span>{% endif %}{% endif %}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">Bu gün için randevu yok.</p>
+    {% endif %}
+
+    {% if walk_ins %}
+    <h3>Randevusuz seanslar</h3>
+    <ul class="plain-list">
+      {% for w in walk_ins %}
+      <li><a href="/terapiler/{{ w.id }}">{{ to_istanbul(w.session_date).strftime('%H:%M') }} · {{ w.client_name }}</a>
+        <span class="muted small">{{ w.therapist_name }} · {{ status_labels.get(w.status, w.status) }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section class="card stack home__month" aria-label="Aylık takvim">
+    <div class="row row--between">
+      <a class="btn btn--secondary btn--small" href="/?gun={{ prev_month }}&kim={{ who }}" aria-label="Önceki ay">‹</a>
+      <h2>{{ month_title }}</h2>
+      <a class="btn btn--secondary btn--small" href="/?gun={{ next_month }}&kim={{ who }}" aria-label="Sonraki ay">›</a>
+    </div>
+    <table class="month">
+      <thead><tr>{% for w in weekdays %}<th scope="col">{{ w }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for week in weeks %}
+        <tr>
+          {% for c in week %}
+          <td class="month__cell{% if not c.in_month %} is-outside{% endif %}{% if c.is_today %} is-today{% endif %}{% if c.is_selected %} is-selected{% endif %}">
+            <a class="month__day" href="/?gun={{ c.day.isoformat() }}&kim={{ who }}"{% if c.is_selected %} aria-current="date"{% endif %}>
+              <span class="month__num">{{ c.day.day }}</span>
+              {% if c.count %}<span class="month__count" title="{{ c.count }} randevu">{{ c.count }}</span>{% endif %}
+            </a>
+            {% if can_book and c.day >= today %}<a class="month__add" href="/randevular/yeni?baslangic={{ c.day.isoformat() }}T10:00&geri=home" aria-label="{{ c.day.strftime('%d.%m.%Y') }} için randevu ekle">+</a>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted small">Sayılar o günkü randevu sayısıdır (iptaller hariç). Bir güne tıklayınca soldaki liste o günü gösterir.</p>
+    <a class="btn btn--secondary btn--small" href="/takvim?gun={{ day.isoformat() }}">Haftalık takvime git</a>
+  </section>
 </div>
 {% endblock %}

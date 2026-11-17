@@ -1,8 +1,7 @@
 """Launcher for the native Windows installation (services and setup steps).
 
-    python -m klinik_local.service --env <klinik.env> kasa        Klinik Kasa web app
-    python -m klinik_local.service --env <klinik.env> sync        sync worker
-    python -m klinik_local.service --env <klinik.env> jobs        backups + daily snapshot
+    python -m klinik_local.service --env <klinik.env> app         the web app (HTTPS)
+    python -m klinik_local.service --env <klinik.env> jobs        backups, snapshot, laptop sync
     python -m klinik_local.service --env <klinik.env> migrate     migrations + role passwords
     python -m klinik_local.service --env <klinik.env> manage ...  klinik_local.manage commands
     python -m klinik_local.service --env <klinik.env> job ...     klinik_local.jobs commands
@@ -47,21 +46,26 @@ def migrate() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="klinik_local.service")
     parser.add_argument("--env", type=Path, required=True)
-    parser.add_argument("target", choices=["kasa", "sync", "jobs", "migrate", "manage", "job"])
+    parser.add_argument("target", choices=["app", "jobs", "migrate", "manage", "job"])
     parser.add_argument("rest", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     load_env(args.env)
 
-    if args.target in ("kasa", "sync"):
+    if args.target == "app":
         import uvicorn
 
-        module = "klinik_local.main" if args.target == "kasa" else "klinik_sync.main"
-        port_key = "KLINIK_KASA_PORT" if args.target == "kasa" else "KLINIK_SYNC_PORT"
+        # Office: KLINIK_BIND=0.0.0.0 so the admin laptop can reach it on the office
+        # network (the firewall rule allows the private network only). Laptop: 127.0.0.1.
+        cert, key = os.environ.get("KLINIK_TLS_CERT"), os.environ.get("KLINIK_TLS_KEY")
         uvicorn.run(
-            f"{module}:create_app",
+            "klinik_local.main:create_app",
             factory=True,
-            host="127.0.0.1",
-            port=int(os.environ.get(port_key, "8090" if args.target == "kasa" else "8091")),
+            host=os.environ.get("KLINIK_BIND", "127.0.0.1"),
+            port=int(os.environ.get("KLINIK_PORT", "8443")),
+            ssl_certfile=cert or None,
+            ssl_keyfile=key or None,
+            proxy_headers=False,
+            server_header=False,
             log_level="info",
         )
     elif args.target == "jobs":

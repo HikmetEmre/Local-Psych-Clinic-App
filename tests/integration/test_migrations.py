@@ -41,10 +41,7 @@ PUBLIC_TABLES = "SELECT table_name FROM information_schema.tables WHERE table_sc
 
 @pytest.mark.parametrize(
     ("chain", "env_var", "version_schema"),
-    [
-        ("cloud", "CLOUD_MIGRATION_DATABASE_URL", "app"),
-        ("local", "LOCAL_MIGRATION_DATABASE_URL", "public"),
-    ],
+    [("local", "LOCAL_MIGRATION_DATABASE_URL", "public")],
 )
 def test_chain_up_down_up(
     chain: str,
@@ -68,17 +65,8 @@ def test_chain_up_down_up(
     assert query(fresh_database, f"SELECT version_num FROM {version_schema}.alembic_version")
 
 
-def test_cloud_chain_puts_nothing_in_the_public_schema(
-    fresh_database: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Supabase serves `public` through its Data API; cloud tables must never land there."""
-    monkeypatch.setenv("CLOUD_MIGRATION_DATABASE_URL", fresh_database)
-    command.upgrade(alembic_config("cloud"), "head")
-    assert query(fresh_database, PUBLIC_TABLES) == []
-
-
 def test_migrations_refuse_to_run_without_a_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("CLOUD_MIGRATION_DATABASE_URL", "CLOUD_DATABASE_URL"):
+    for name in ("LOCAL_MIGRATION_DATABASE_URL", "LOCAL_DATABASE_URL"):
         monkeypatch.delenv(name, raising=False)
-    with pytest.raises(RuntimeError, match="CLOUD_MIGRATION_DATABASE_URL"):
-        command.upgrade(alembic_config("cloud"), "head")
+    with pytest.raises(RuntimeError, match="LOCAL_MIGRATION_DATABASE_URL"):
+        command.upgrade(alembic_config("local"), "head")

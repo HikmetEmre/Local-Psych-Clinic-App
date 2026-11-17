@@ -109,7 +109,7 @@ def test_users_file_parsing() -> None:
     users = parse_users_file(USERS_TOML)
     assert users[0]["user_id"] == THERAPIST
     assert Permission.ADMIN_USERS in users[0]["permissions"]
-    assert Permission.SESSIONS_READ_OTHERS not in users[0]["permissions"]
+    assert Permission.SESSIONS_READ_OTHERS in users[0]["permissions"]  # admin sees all
 
     with pytest.raises(ValueError, match="at least one"):
         parse_users_file(b"")

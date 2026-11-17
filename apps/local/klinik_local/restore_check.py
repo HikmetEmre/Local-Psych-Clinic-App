@@ -71,7 +71,14 @@ async def verify_restore(dsn: str, fernet_keys: str | None) -> RestoreReport:
         report.schema_version = await conn.fetchval("SELECT version_num FROM alembic_version")
         if report.expected_version and report.schema_version != report.expected_version:
             report.problems.append("schema version differs from this software's migrations")
-        for table in ("users", "clients", "therapy_sessions", "sync_outbox", "audit_log"):
+        for table in (
+            "users",
+            "clients",
+            "therapy_sessions",
+            "appointments",
+            "payments",
+            "audit_log",
+        ):
             report.counts[table] = int(await conn.fetchval(f"SELECT count(*) FROM {table}"))  # noqa: S608
         if report.counts["users"] == 0:
             report.problems.append("no users in the restored database")

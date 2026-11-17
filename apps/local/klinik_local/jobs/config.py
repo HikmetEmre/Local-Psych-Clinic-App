@@ -26,7 +26,6 @@ class JobSettings(BaseSettings):
     rclone_config: Path | None = Field(default=None, alias="RCLONE_CONFIG")
     # e.g. "klinik-drive:Nil Psikoloji"; backups go to <remote>/yedek, snapshots to <remote>/ozet
     rclone_remote: str | None = Field(default=None, alias="BACKUP_RCLONE_REMOTE")
-    cloud_dump_url: str | None = Field(default=None, alias="BACKUP_CLOUD_DUMP_URL")
 
     snapshot_hour: int = Field(default=17, alias="SNAPSHOT_HOUR")
 

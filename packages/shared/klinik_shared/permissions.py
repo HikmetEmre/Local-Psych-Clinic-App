@@ -28,9 +28,13 @@ class Permission(StrEnum):
 
 P = Permission
 
+# Decision 2026-11-18: one office app with two roles.
+# Therapist: the whole calendar (and booking), their own clients' sessions, own income.
 THERAPIST_SET: frozenset[Permission] = frozenset(
     {
         P.SCHEDULE_READ_ALL,
+        P.SCHEDULE_WRITE_ALL,
+        P.PAYMENTS_WRITE,
         P.INCOME_READ_OWN,
         P.CLIENTS_READ,
         P.CLIENTS_WRITE,
@@ -39,6 +43,11 @@ THERAPIST_SET: frozenset[Permission] = frozenset(
     }
 )
 
+# Admin (the clinic owner) sees everything: every therapist's sessions and notes, all
+# income, reports, users and settings. The owner can also run their own sessions.
+ADMIN_SET: frozenset[Permission] = frozenset(Permission)
+
+# Front desk without clinical access (kept for completeness; not offered as a role).
 SCHEDULER_SET: frozenset[Permission] = frozenset(
     {
         P.SCHEDULE_READ_ALL,
@@ -49,20 +58,17 @@ SCHEDULER_SET: frozenset[Permission] = frozenset(
     }
 )
 
-# Admin manages the system, not a colleague's clinical records:
-# SESSIONS_READ_OTHERS is deliberately absent (brief §13, decision 2).
-ADMIN_SET: frozenset[Permission] = frozenset(
-    {
-        P.SCHEDULE_READ_ALL,
-        P.SCHEDULE_WRITE_ALL,
-        P.PAYMENTS_WRITE,
-        P.INCOME_READ_ALL,
-        P.ADMIN_USERS,
-        P.ADMIN_CATALOG,
-        P.ADMIN_EXPORT,
-        P.ADMIN_BACKUP,
-    }
-)
+ROLES: dict[str, str] = {"admin": "Yönetici", "therapist": "Terapist"}
+
+
+def role_of(permissions: set[str] | frozenset[str]) -> str | None:
+    """The role whose set matches exactly, or None for a hand-made combination."""
+    held = frozenset(permissions)
+    for name in ROLES:
+        if held == frozenset(p.value for p in PERMISSION_SETS[name]):
+            return name
+    return None
+
 
 PERMISSION_SETS: dict[str, frozenset[Permission]] = {
     "admin": ADMIN_SET,

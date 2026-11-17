@@ -18,7 +18,7 @@ import pyrage
 from klinik_local.jobs.config import JobSettings
 from klinik_shared.timeutil import now_utc, to_istanbul
 
-RETENTION = {"daily": 30, "monthly": 12, "hourly": 48, "cloud": 8}
+RETENTION = {"daily": 30, "monthly": 12, "hourly": 48}
 MIN_SIZE = 100
 
 
@@ -86,25 +86,17 @@ def rclone(settings: JobSettings, *args: str) -> bool:
 
 
 async def run_backup(settings: JobSettings, kind: str) -> BackupResult:
-    if kind not in ("daily", "hourly", "cloud"):
+    if kind not in ("daily", "hourly"):
         raise ValueError(kind)
     stamp = to_istanbul(now_utc()).strftime("%Y%m%d-%H%M")
     folder = settings.backup_dir / kind
     folder.mkdir(parents=True, exist_ok=True)
-    if kind == "cloud":
-        if not settings.cloud_dump_url:
-            raise BackupError("BACKUP_CLOUD_DUMP_URL is not set")
-        uri, env = split_dsn(settings.cloud_dump_url)
-        extra = ["--schema=app"]
-        target = folder / f"klinik-web-{stamp}.dump.age"
-    else:
-        uri, env = split_dsn(settings.backup_database_url)
-        extra = []
-        target = folder / f"kasa-{stamp}.dump.age"
+    uri, env = split_dsn(settings.backup_database_url)
+    target = folder / f"kasa-{stamp}.dump.age"
 
     command = [
         settings.tool("pg_dump"), "--format=custom", "--compress=6", "--no-owner",
-        "--no-privileges", *extra, f"--dbname={uri}",
+        "--no-privileges", f"--dbname={uri}",
     ]  # fmt: skip
     dump = await asyncio.to_thread(
         subprocess.run, command, capture_output=True, env=env, check=False, timeout=3600

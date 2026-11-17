@@ -1,21 +1,19 @@
 [project]
 name = "klinik"
 version = "0.1.0"
-description = "Nil Psikoloji clinic management: Klinik Web (cloud) + Klinik Kasa (local) + sync worker"
+description = "Nil Psikoloji clinic management: one office app with admin and therapist roles"
 requires-python = ">=3.12"
-dependencies = ["klinik-shared", "klinik-cloud", "klinik-local", "klinik-sync"]
+dependencies = ["klinik-shared", "klinik-local"]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/shared", "apps/cloud", "apps/local", "apps/sync"]
+members = ["packages/shared", "apps/local"]
 
 [tool.uv.sources]
 klinik-shared = { workspace = true }
-klinik-cloud = { workspace = true }
 klinik-local = { workspace = true }
-klinik-sync = { workspace = true }
 
 [dependency-groups]
 dev = [

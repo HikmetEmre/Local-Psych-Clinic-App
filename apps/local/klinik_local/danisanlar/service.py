@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import FieldCipher
-from klinik_local.outbox import enqueue_client_code
 from klinik_shared.audit import write_audit
 from klinik_shared.authkit.service import CurrentUser
 from klinik_shared.client_code import format_client_code
@@ -245,9 +244,6 @@ class ClientService:
                 .returning(t.clients)
             )
         ).one()
-        await enqueue_client_code(
-            conn, code=code, active=True, assigned_therapist_id=data.assigned_therapist_id
-        )
         await write_audit(
             conn,
             t.audit_log,
@@ -291,14 +287,6 @@ class ClientService:
         ).one_or_none()
         if row is None:
             raise VersionConflict
-        if "assigned_therapist_id" in changed:
-            # The cloud only ever learns (code, active, assigned therapist).
-            await enqueue_client_code(
-                conn,
-                code=before.client_code,
-                active=before.is_active,
-                assigned_therapist_id=data.assigned_therapist_id,
-            )
         if changed:
             await write_audit(
                 conn,
@@ -325,12 +313,6 @@ class ClientService:
                 .returning(t.clients)
             )
         ).one()
-        await enqueue_client_code(
-            conn,
-            code=before.client_code,
-            active=active,
-            assigned_therapist_id=before.assigned_therapist_id,
-        )
         await write_audit(
             conn,
             t.audit_log,

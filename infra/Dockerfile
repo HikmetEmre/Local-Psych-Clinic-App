@@ -1,4 +1,4 @@
-# One image definition for all three services. Build with --build-arg APP=cloud|local|sync.
+# The office app image (development and tests). Build with --build-arg APP=local.
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /usr/local/bin/uv

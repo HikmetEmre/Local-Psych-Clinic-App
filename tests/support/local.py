@@ -39,6 +39,7 @@ ROLE_PASSWORD = "test_role_pw"
 
 A_ID = UUID("0b9c6f0e-5d1a-4f6b-9a53-1f2f1c7a1a01")
 B_ID = UUID("0b9c6f0e-5d1a-4f6b-9a53-1f2f1c7a1a02")
+ADMIN_ID = UUID("0b9c6f0e-5d1a-4f6b-9a53-1f2f1c7a1a0a")
 PASSWORD = "dogru-at-pil-zimba-42"
 
 
@@ -163,12 +164,29 @@ def add_user(
     return created[username]
 
 
+# Therapist A also runs the admin pages but does NOT read colleagues' sessions, so the
+# therapist-isolation tests stay meaningful. The real "admin" role (everything) is
+# tested with ADMIN_ID.
+A_PERMISSIONS = expand_sets("therapist") | {
+    Permission.ADMIN_USERS,
+    Permission.ADMIN_CATALOG,
+    Permission.ADMIN_EXPORT,
+    Permission.ADMIN_BACKUP,
+    Permission.INCOME_READ_ALL,
+}
+
+
 def add_therapists(db: LocalDb) -> dict[str, str]:
-    """Therapist A (admin + therapist) and B (therapist + scheduler), as in the brief."""
+    """Therapist A (therapist + admin tools) and B (therapist)."""
     return {
-        "a": add_user(db, A_ID, "terapist.a", "Terapist A", expand_sets("admin", "therapist")),
-        "b": add_user(db, B_ID, "terapist.b", "Terapist B", expand_sets("therapist", "scheduler")),
+        "a": add_user(db, A_ID, "terapist.a", "Terapist A", A_PERMISSIONS),
+        "b": add_user(db, B_ID, "terapist.b", "Terapist B", expand_sets("therapist")),
     }
+
+
+def add_admin(db: LocalDb) -> str:
+    """The clinic owner with the full admin role."""
+    return add_user(db, ADMIN_ID, "yonetici", "Klinik Sahibi", expand_sets("admin"))
 
 
 # ------------------------------------------------------------------ browser-like client

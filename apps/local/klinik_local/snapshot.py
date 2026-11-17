@@ -109,18 +109,12 @@ async def recipients(conn: asyncpg.Connection, cipher: FieldCipher) -> list[Reci
 async def build_payload(
     conn: asyncpg.Connection, cipher: FieldCipher, user: Recipient, now: datetime
 ) -> dict[str, Any]:
-    names = {
-        r["client_code"]: (r["id"], cipher.decrypt(r["full_name_encrypted"]))
-        for r in await conn.fetch(
-            "SELECT id, client_code, full_name_encrypted FROM clients WHERE deleted_at IS NULL"
-        )
-    }
     schedule = [
         {
             "when": format_datetime_tr(r["starts_at"]),
             "day": to_istanbul(r["starts_at"]).date().isoformat(),
             "minutes": r["duration_min"],
-            "client": names.get(r["client_code"], (None, r["client_code"]))[1],
+            "client": cipher.decrypt(r["full_name_encrypted"]),
             "code": r["client_code"],
             "therapist": r["display_name"] or "—",
             "room": r["room"] or "—",
@@ -128,9 +122,10 @@ async def build_payload(
             "mine": r["therapist_id"] == user.user_id,
         }
         for r in await conn.fetch(
-            "SELECT m.*, u.display_name, rm.internal_label AS room FROM appointments_mirror m "
+            "SELECT m.*, c.client_code, c.full_name_encrypted, u.display_name, rm.label AS room "
+            "FROM appointments m JOIN clients c ON c.id = m.client_id "
             "LEFT JOIN users u ON u.id = m.therapist_id "
-            "LEFT JOIN rooms_mirror rm ON rm.id = m.room_id "
+            "LEFT JOIN rooms rm ON rm.id = m.room_id "
             "WHERE m.deleted_at IS NULL AND m.status <> 'cancelled' "
             "AND m.starts_at >= $1 AND m.starts_at < $2 ORDER BY m.starts_at",
             now - timedelta(hours=2),

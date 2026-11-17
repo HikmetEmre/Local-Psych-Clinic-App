@@ -1,27 +1,36 @@
 """User administration shared by both tiers: pages (admin.users) and operator commands.
 
-Users are created only by the bootstrap command, from one TOML file, so that a user
-has the same id in the cloud and in the office.
+The first users come from the installer's TOML file; afterwards the admin adds users
+in Ayarlar -> Kullanicilar and gives each one a role (Yonetici or Terapist).
 """
 
 from __future__ import annotations
 
+import re
 import tomllib
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from klinik_shared.authkit.service import AuthStore, CurrentUser
 from klinik_shared.authkit.web import AuthKit
 from klinik_shared.labels_tr import PERMISSION_LABELS
-from klinik_shared.permissions import ALL_PERMISSION_VALUES, Permission, expand_sets
+from klinik_shared.permissions import (
+    ALL_PERMISSION_VALUES,
+    PERMISSION_SETS,
+    ROLES,
+    Permission,
+    expand_sets,
+    role_of,
+)
 
 USERS_PATH = "/ayarlar/kullanicilar"
+USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{2,39}")
 
 # ---------------------------------------------------------------- operator commands
 
@@ -111,6 +120,8 @@ def build_users_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
             {
                 "users": rows,
                 "grants": by_user,
+                "roles": ROLES,
+                "role_of": {uid: role_of(perms) for uid, perms in by_user.items()},
                 "all_permissions": ALL_PERMISSION_VALUES,
                 "permission_labels": PERMISSION_LABELS,
                 "error": error,
@@ -129,6 +140,61 @@ def build_users_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
     @router.get("/kullanicilar", response_class=HTMLResponse)
     async def list_users(request: Request, user: CurrentUser = admin) -> Response:
         return await users_page(request, user)
+
+    @router.post("/kullanicilar", response_class=HTMLResponse)
+    async def create_user(request: Request, user: CurrentUser = admin) -> Response:
+        form = await request.form()
+        username = str(form.get("username") or "").strip().lower()
+        display_name = " ".join(str(form.get("display_name") or "").split())
+        role = str(form.get("role") or "")
+        error: str | None = None
+        if not USERNAME_RE.fullmatch(username):
+            error = (
+                "Kullanıcı adı 3–40 karakter olmalı; küçük harf, rakam, nokta, tire "
+                "veya alt çizgi içerebilir (ör. ayse.kaya)."
+            )
+        elif not display_name or len(display_name) > 80:
+            error = "Ad soyad zorunludur."
+        elif role not in ROLES:
+            error = "Rol seçin."
+        if error is not None:
+            return await users_page(request, user, error=error, status_code=422)
+        async with auth.tx(user) as conn:
+            taken = (
+                await conn.execute(select(func.count()).where(users_table.c.username == username))
+            ).scalar_one()
+            if taken:
+                return await users_page(
+                    request, user, error="Bu kullanıcı adı zaten var.", status_code=409
+                )
+            temporary = await auth.store.ensure_user(
+                conn,
+                user_id=uuid4(),
+                username=username,
+                display_name=display_name,
+                permissions=PERMISSION_SETS[role],
+            )
+        if temporary is None:  # pragma: no cover - a fresh uuid never exists
+            return await users_page(request, user, error="Kullanıcı eklenemedi.", status_code=500)
+        return await users_page(
+            request,
+            user,
+            notice=f"{display_name} eklendi ({ROLES[role]}).",
+            temporary_password=(display_name, temporary),
+        )
+
+    @router.post("/kullanicilar/{user_id}/rol", response_class=HTMLResponse)
+    async def set_role(request: Request, user_id: UUID, user: CurrentUser = admin) -> Response:
+        role = str((await request.form()).get("role") or "")
+        if role not in ROLES:
+            return await users_page(request, user, error="Rol seçin.", status_code=422)
+        if user_id == user.id and role != "admin":
+            return await users_page(
+                request, user, error="Kendi yönetici rolünüzü kaldıramazsınız.", status_code=400
+            )
+        async with auth.tx(user) as conn:
+            await auth.store.set_permissions(conn, user_id, PERMISSION_SETS[role], actor_id=user.id)
+        return await users_page(request, user, notice=f"Rol güncellendi: {ROLES[role]}.")
 
     @router.post("/kullanicilar/{user_id}/yetkiler", response_class=HTMLResponse)
     async def set_permissions(

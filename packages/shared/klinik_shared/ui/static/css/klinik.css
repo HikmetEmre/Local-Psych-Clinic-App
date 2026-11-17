@@ -1456,3 +1456,78 @@ meter.bar::-moz-meter-bar {
   background: var(--green-500);
   border-radius: 999px;
 }
+
+/* ---------------------------------------------------------------- home (day + month) */
+.home {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .home { grid-template-columns: minmax(0, 1fr); }
+}
+.row--between { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.nowrap { white-space: nowrap; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.day-list td { vertical-align: middle; }
+
+.month { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; }
+.month th { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-align: center; padding: 0.2rem 0; }
+.month__cell {
+  position: relative;
+  height: 3.2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  vertical-align: top;
+}
+.month__cell.is-outside { background: transparent; border-color: transparent; }
+.month__cell.is-outside .month__num { color: var(--beige-300); }
+.month__cell.is-today { border-color: var(--green-500); }
+.month__cell.is-selected { background: var(--green-100); border-color: var(--accent); }
+.month__day {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0.25rem 0.35rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.month__day:hover, .month__day:focus-visible { background: var(--green-50); border-radius: var(--radius-sm); }
+.month__num { font-size: 0.85rem; font-weight: 600; }
+.month__cell.is-today .month__num { color: var(--accent); }
+.month__count {
+  align-self: flex-end;
+  min-width: 1.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.35rem;
+}
+.month__add {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.25rem;
+  display: none;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--beige-100);
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 1.3rem;
+  text-align: center;
+  text-decoration: none;
+}
+.month__cell:hover .month__add, .month__add:focus-visible { display: block; }
+@media (hover: none) {
+  .month__add { display: block; opacity: 0.8; }
+}

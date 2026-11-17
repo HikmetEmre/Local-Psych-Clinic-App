@@ -48,6 +48,16 @@ async def _main(args: argparse.Namespace) -> int:
         print("# Keep an OFFLINE copy of LOCAL_FERNET_KEYS. Without it, notes cannot be recovered.")
         return 0
 
+    if args.command == "generate-cert":
+        from klinik_local import tls
+
+        names = args.name or tls.default_names()
+        cert, _ = tls.write(Path(args.out), names)
+        print(f"certificate: {cert}")
+        print(f"names: {', '.join(names)}")
+        print(f"SHA-256: {tls.fingerprint(cert.read_bytes())}")
+        return 0
+
     if args.command == "verify-restore":
         dsn = os.environ.get("RESTORE_DSN")
         if not dsn:
@@ -105,6 +115,9 @@ def main() -> None:
     bootstrap.add_argument("file", help='path to the TOML file, or "-" for stdin')
     sub.add_parser("generate-keys", help="print new Fernet keys for the env file")
     sub.add_parser("verify-restore", help="check a restored backup (RESTORE_DSN)")
+    cert = sub.add_parser("generate-cert", help="create the office HTTPS certificate")
+    cert.add_argument("--out", required=True, help="directory for klinik.crt / klinik.key")
+    cert.add_argument("--name", action="append", help="DNS name or IP (repeatable)")
     sys.exit(asyncio.run(_main(parser.parse_args())))
 
 

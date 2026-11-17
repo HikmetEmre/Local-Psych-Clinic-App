@@ -1,18 +1,24 @@
-"""The permission bundles must reproduce the table in brief §5 exactly."""
+"""The two roles of the office app (decision 2026-11-18): admin sees all, therapist own."""
 
 from __future__ import annotations
 
 import pytest
 
-from klinik_shared.permissions import ALL_PERMISSION_VALUES, Permission, expand_sets
+from klinik_shared.permissions import (
+    ALL_PERMISSION_VALUES,
+    ROLES,
+    Permission,
+    expand_sets,
+    role_of,
+)
 
 P = Permission
 
-THERAPIST_A = expand_sets("admin", "therapist")
-THERAPIST_B = expand_sets("therapist", "scheduler")
+ADMIN = expand_sets("admin")
+THERAPIST = expand_sets("therapist")
 
-# permission -> (A has it, B has it), copied from the brief.
-BRIEF_TABLE: dict[Permission, tuple[bool, bool]] = {
+# permission -> (admin has it, therapist has it)
+ROLE_TABLE: dict[Permission, tuple[bool, bool]] = {
     P.SCHEDULE_READ_ALL: (True, True),
     P.SCHEDULE_WRITE_ALL: (True, True),
     P.PAYMENTS_WRITE: (True, True),
@@ -22,7 +28,7 @@ BRIEF_TABLE: dict[Permission, tuple[bool, bool]] = {
     P.CLIENTS_WRITE: (True, True),
     P.SESSIONS_READ_OWN: (True, True),
     P.SESSIONS_WRITE_OWN: (True, True),
-    P.SESSIONS_READ_OTHERS: (False, False),
+    P.SESSIONS_READ_OTHERS: (True, False),
     P.ADMIN_USERS: (True, False),
     P.ADMIN_CATALOG: (True, False),
     P.ADMIN_EXPORT: (True, False),
@@ -31,17 +37,24 @@ BRIEF_TABLE: dict[Permission, tuple[bool, bool]] = {
 
 
 def test_table_covers_every_permission() -> None:
-    assert set(BRIEF_TABLE) == set(Permission)
+    assert set(ROLE_TABLE) == set(Permission)
 
 
 @pytest.mark.parametrize("permission", list(Permission))
-def test_therapist_a_and_b_match_the_brief(permission: Permission) -> None:
-    a_expected, b_expected = BRIEF_TABLE[permission]
-    assert (permission in THERAPIST_A) is a_expected
-    assert (permission in THERAPIST_B) is b_expected
+def test_admin_and_therapist_roles(permission: Permission) -> None:
+    admin_expected, therapist_expected = ROLE_TABLE[permission]
+    assert (permission in ADMIN) is admin_expected
+    assert (permission in THERAPIST) is therapist_expected
 
 
-def test_a_future_secretary_gets_no_clinical_access() -> None:
+def test_role_of_recognises_exact_sets_only() -> None:
+    assert role_of({p.value for p in ADMIN}) == "admin"
+    assert role_of({p.value for p in THERAPIST}) == "therapist"
+    assert role_of({p.value for p in THERAPIST} | {"admin.users"}) is None
+    assert set(ROLES) == {"admin", "therapist"}
+
+
+def test_a_secretary_set_gets_no_clinical_access() -> None:
     secretary = expand_sets("scheduler")
     assert P.SCHEDULE_WRITE_ALL in secretary
     assert not {P.SESSIONS_READ_OWN, P.SESSIONS_WRITE_OWN, P.SESSIONS_READ_OTHERS} & secretary

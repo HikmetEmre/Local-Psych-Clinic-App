@@ -100,7 +100,9 @@ def test_the_user_setting_does_not_leak_between_transactions(db: LocalDb) -> Non
         "TRUNCATE audit_log",
         "DELETE FROM clients",
         "DELETE FROM users",
-        "UPDATE sync_outbox SET state = 'sent'",
+        "DELETE FROM appointments",
+        "DELETE FROM payments",
+        "UPDATE payments SET amount = 1",
         "DROP TABLE clients",
         "ALTER TABLE clients DISABLE ROW LEVEL SECURITY",
         "CREATE TABLE public.sneaky (x int)",
@@ -119,24 +121,11 @@ def test_sync_role_cannot_read_identity_or_credentials(db: LocalDb, table: str) 
         as_app(db, f"SELECT * FROM {table}", url=db.sync_url)
 
 
-def test_sync_role_can_work_the_outbox(db: LocalDb) -> None:
-    execute(
-        db,
-        "INSERT INTO sync_outbox (kind, payload) VALUES ('client_code.upsert', '{}'::jsonb)",
-    )
-    assert as_app(db, "SELECT count(*) FROM sync_outbox", url=db.sync_url)[0][0] == 1
-    as_app(db, "UPDATE sync_outbox SET state = 'sent', sent_at = now()", url=db.sync_url)
-    assert scalar(db, "SELECT state FROM sync_outbox") == "sent"
-    with pytest.raises(asyncpg.InsufficientPrivilegeError):
-        as_app(db, "DELETE FROM sync_outbox", url=db.sync_url)
-
-
 @pytest.mark.parametrize(
     "statement",
     [
         "INSERT INTO clients (client_code, full_name_encrypted) VALUES ('DN-0042', '\\x00')",
         "INSERT INTO clients (client_code, full_name_encrypted) VALUES ('DN-2026-0001', '\\x00')",
-        "INSERT INTO sync_outbox (kind, payload) VALUES ('client.full_record', '{}'::jsonb)",
         "INSERT INTO user_permissions (user_id, permission) "
         "SELECT id, 'superuser.everything' FROM users LIMIT 1",
         "INSERT INTO users (id, username, display_name, password_hash) "

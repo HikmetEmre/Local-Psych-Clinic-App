@@ -101,7 +101,7 @@ def stage_python() -> Path:
         ).stdout  # fmt: skip
         lines.update(line for line in out.splitlines() if line and not line.startswith(("#", " ")))
     requirements.write_text("\n".join(sorted(lines)) + "\n", encoding="utf-8")
-    target = [
+    target: list[str | Path] = [
         "--target",
         site,
         "--python-version",

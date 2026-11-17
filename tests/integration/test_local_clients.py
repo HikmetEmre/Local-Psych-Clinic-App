@@ -13,7 +13,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from support.local import (
     A_ID,
-    B_ID,
     FERNET_KEY,
     Kasa,
     LocalDb,
@@ -58,11 +57,6 @@ def new_client(kasa: Kasa, **overrides: str) -> str:
     return response.headers["location"].split("?")[0]
 
 
-def outbox(db: LocalDb) -> list[dict[str, Any]]:
-    rows = fetch(db, "SELECT kind, payload, state FROM sync_outbox ORDER BY seq")
-    return [{"kind": r["kind"], "state": r["state"], **json.loads(r["payload"])} for r in rows]
-
-
 def test_create_assigns_a_code_and_shows_the_client(kasa: Kasa, local_db: LocalDb) -> None:
     path = new_client(kasa)
     page = kasa.get(path)
@@ -104,21 +98,6 @@ def test_the_database_cannot_be_read_with_a_different_key(kasa: Kasa, local_db: 
         Fernet(Fernet.generate_key()).decrypt(stored)
 
 
-def test_outbox_carries_only_code_active_and_therapist(kasa: Kasa, local_db: LocalDb) -> None:
-    new_client(kasa)
-    assert outbox(local_db) == [
-        {
-            "kind": "client_code.upsert",
-            "state": "pending",
-            "code": f"DN-{YEAR}-0001",
-            "active": True,
-            "assigned_therapist_id": str(A_ID),
-        }
-    ]
-    dump = scalar(local_db, "SELECT string_agg(sync_outbox::text, ' ') FROM sync_outbox")
-    assert "Zeynep" not in dump and "2015" not in dump
-
-
 def test_audit_log_names_fields_but_never_values(kasa: Kasa, local_db: LocalDb) -> None:
     path = new_client(kasa)
     kasa.post(
@@ -141,7 +120,10 @@ def test_audit_log_names_fields_but_never_values(kasa: Kasa, local_db: LocalDb) 
     assert all(r["actor_id"] == A_ID for r in rows)
     assert json.loads(rows[1]["detail"]) == {"changed": ["full_name", "email"]}
 
-    dump = scalar(local_db, "SELECT string_agg(audit_log::text, ' ') FROM audit_log")
+    dump = scalar(
+        local_db,
+        "SELECT string_agg(concat_ws(' ', action, entity_type, detail::text), ' ') FROM audit_log",
+    )
     for secret in ("Zeynep", "Öztürk", "example.org", "532"):
         assert secret not in dump
 
@@ -167,7 +149,6 @@ def test_invalid_input_is_rejected_and_nothing_is_stored(
     assert response.status_code == 422
     assert message in response.text
     assert scalar(local_db, "SELECT count(*) FROM clients") == 0
-    assert scalar(local_db, "SELECT count(*) FROM sync_outbox") == 0
     # A failed create must not burn a client number.
     assert scalar(local_db, "SELECT count(*) FROM client_code_counters") == 0
 
@@ -178,23 +159,6 @@ def test_optional_fields_may_be_left_empty(kasa: Kasa, local_db: LocalDb) -> Non
     row = fetch(local_db, "SELECT * FROM clients")[0]
     assert row["phone_encrypted"] is None and row["email_encrypted"] is None
     assert row["birth_date"] is None and row["assigned_therapist_id"] is None
-    assert outbox(local_db)[0]["assigned_therapist_id"] is None
-
-
-def test_update_tells_the_cloud_only_when_the_therapist_changes(
-    kasa: Kasa, local_db: LocalDb
-) -> None:
-    path = new_client(kasa)
-    base = {"full_name": NAME, "phone": "", "email": "", "birth_date": "2015-03-20"}
-
-    kasa.post(path, {**base, "assigned_therapist_id": str(A_ID), "version": "1"})
-    assert len(outbox(local_db)) == 1  # a phone change is none of the cloud's business
-
-    response = kasa.post(path, {**base, "assigned_therapist_id": str(B_ID), "version": "2"})
-    assert response.status_code == 303
-    items = outbox(local_db)
-    assert len(items) == 2
-    assert items[1]["assigned_therapist_id"] == str(B_ID) and items[1]["active"] is True
 
 
 def test_stale_edit_is_refused(kasa: Kasa, local_db: LocalDb) -> None:
@@ -218,7 +182,6 @@ def test_deactivate_and_reactivate(kasa: Kasa, local_db: LocalDb) -> None:
     assert NAME in kasa.get("/danisanlar?durum=tum").text
 
     assert kasa.post(f"{path}/durum", {"active": "1"}).status_code == 303
-    assert [item["active"] for item in outbox(local_db)] == [True, False, True]
     actions = [
         r["action"]
         for r in fetch(
@@ -311,41 +274,3 @@ def test_concurrent_creates_get_distinct_consecutive_codes(local_db: LocalDb) ->
     codes = run(go())
     assert sorted(codes) == [f"DN-{YEAR}-{n:04d}" for n in range(1, count + 1)]
     assert scalar(local_db, "SELECT last_n FROM client_code_counters") == count
-
-
-def test_client_and_outbox_item_roll_back_together(local_db: LocalDb) -> None:
-    """The outbox row is written in the same transaction as the client (brief §9)."""
-    add_therapists(local_db)
-    service = ClientService(FieldCipher(FERNET_KEY))
-
-    async def go() -> None:
-        engine = create_async_engine(local_db.app_url)
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(SET_USER, {"uid": str(A_ID)})
-                await service.create(
-                    conn, actor(), ClientInput("Geri Alınacak", None, None, None, None)
-                )
-                counts = (
-                    await conn.execute(
-                        text(
-                            "SELECT (SELECT count(*) FROM clients), "
-                            "(SELECT count(*) FROM sync_outbox)"
-                        )
-                    )
-                ).one()
-                assert tuple(counts) == (1, 1)
-                raise RuntimeError("boom")
-        finally:
-            await engine.dispose()
-
-    with pytest.raises(RuntimeError, match="boom"):
-        run(go())
-
-    for table in (
-        "clients",
-        "sync_outbox",
-        "client_code_counters",
-        "audit_log WHERE entity_type='client'",
-    ):
-        assert scalar(local_db, f"SELECT count(*) FROM {table}") == 0, table

@@ -3,6 +3,7 @@
   <a class="segment" href="/ayarlar/kullanicilar"{% if request.url.path.startswith('/ayarlar/kullanicilar') %} aria-current="page"{% endif %}>Kullanıcılar</a>
   {% endif %}
   {% if "admin.catalog" in user.permissions %}
+  <a class="segment" href="/ayarlar/odalar"{% if request.url.path.startswith('/ayarlar/odalar') %} aria-current="page"{% endif %}>Odalar</a>
   <a class="segment" href="/ayarlar/katalog"{% if request.url.path.startswith('/ayarlar/katalog') %} aria-current="page"{% endif %}>Terapi kataloğu</a>
   {% endif %}
   {% if "admin.backup" in user.permissions %}

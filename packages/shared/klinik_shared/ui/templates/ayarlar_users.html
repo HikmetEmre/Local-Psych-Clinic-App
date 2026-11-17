@@ -2,7 +2,7 @@
 {% block title %}Kullanıcılar{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Kullanıcılar ve yetkiler</h1>
+  <h1>Kullanıcılar</h1>
 </div>
 {% include "ayarlar/_subnav.html" %}
 
@@ -15,6 +15,33 @@
 </div>
 {% endif %}
 
+<section class="card stack">
+  <h2>Yeni kullanıcı</h2>
+  <form class="form-grid" method="post" action="/ayarlar/kullanicilar" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="new_display_name">Ad soyad</label>
+      <input id="new_display_name" name="display_name" type="text" maxlength="80" required>
+    </div>
+    <div class="field">
+      <label for="new_username">Kullanıcı adı</label>
+      <input id="new_username" name="username" type="text" maxlength="40" placeholder="ayse.kaya" autocapitalize="none" spellcheck="false" required>
+    </div>
+    <div class="field">
+      <label for="new_role">Rol</label>
+      <select id="new_role" name="role" required>
+        {% for code, label in roles.items() %}<option value="{{ code }}"{% if code == 'therapist' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">Kullanıcıyı ekle</button>
+    </div>
+  </form>
+  <p class="muted small"><strong>Yönetici</strong>: her şeyi görür (tüm seans notları, tüm gelir, raporlar, kullanıcılar, ayarlar).
+    <strong>Terapist</strong>: takvimi görür ve randevu verir; yalnızca kendi seanslarını, notlarını ve gelirini görür.
+    Yeni kullanıcıya geçici şifre verilir; ilk girişte şifresini değiştirir ve iki adımlı doğrulamayı kurar.</p>
+</section>
+
 {% for u in users %}
 <section class="card stack">
   <div class="row">
@@ -25,6 +52,19 @@
     {% if u.id == user.id %}<span class="badge">Siz</span>{% endif %}
   </div>
 
+  <form class="row" method="post" action="/ayarlar/kullanicilar/{{ u.id }}/rol">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="role_{{ u.id }}">Rol</label>
+    {% set current = role_of.get(u.id) %}
+    <select id="role_{{ u.id }}" name="role">
+      {% if not current %}<option value="" selected>Özel yetkiler</option>{% endif %}
+      {% for code, label in roles.items() %}<option value="{{ code }}"{% if code == current %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button class="btn btn--small btn--secondary" type="submit">Rolü kaydet</button>
+  </form>
+
+  <details>
+  <summary class="muted small">Ayrıntılı yetkiler</summary>
   <form method="post" action="/ayarlar/kullanicilar/{{ u.id }}/yetkiler">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="checks">
@@ -39,6 +79,7 @@
       <button class="btn btn--secondary" type="submit">Yetkileri kaydet</button>
     </div>
   </form>
+  </details>
 
   {% if u.id != user.id %}
   <div class="row">
@@ -62,8 +103,4 @@
 </section>
 {% endfor %}
 
-<p class="muted small">
-  Yeni kullanıcılar, kimliklerinin iki sistemde de aynı olması için kurulum komutuyla eklenir
-  (bkz. README, "Kullanıcı ekleme").
-</p>
 {% endblock %}

@@ -387,28 +387,22 @@ def build_router(
         if appointment_id is not None:
             # Seansı kaydet from the calendar: start from the booked appointment.
             async with auth.tx(user) as conn:
-                m = t.appointments_mirror
+                m = t.appointments
                 appt = (
                     await conn.execute(
                         select(m).where(m.c.id == appointment_id, m.c.deleted_at.is_(None))
                     )
                 ).one_or_none()
-                everyone = await clients.search(conn, status="all") if appt else []
             if appt is None:
                 errors["appointment_id"] = "Randevu bulunamadı."
             else:
-                client = next((c for c in everyone if c.client_code == appt.client_code), None)
                 values.update(
-                    client_id=str(client.id) if client else "",
+                    client_id=str(appt.client_id),
                     session_date=local_input(appt.starts_at),
                     duration_min=appt.duration_min,
                     appointment_id=str(appt.id),
                     status="planned" if appt.starts_at > now_utc() else "completed",
                 )
-                if client is None:
-                    errors["client_id"] = (
-                        f"{appt.client_code} kodlu danışan bu bilgisayarda kayıtlı değil."
-                    )
         return await form_page(request, user, values=values, errors=errors)
 
     @router.get("/form/yontemler", response_class=HTMLResponse)

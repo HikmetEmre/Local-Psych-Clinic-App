@@ -12,11 +12,11 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     MetaData,
+    Numeric,
     Table,
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from klinik_shared.authkit.tables import build_audit_table, build_auth_tables
@@ -25,6 +25,8 @@ metadata = MetaData()
 
 auth = build_auth_tables(metadata)
 users = auth.users
+users.append_column(Column("default_room_id", PGUUID(as_uuid=True), ForeignKey("rooms.id")))
+users.append_column(Column("change_seq", BigInteger))
 user_permissions = auth.user_permissions
 audit_log = build_audit_table(metadata)
 
@@ -56,20 +58,6 @@ client_code_counters = Table(
     metadata,
     Column("year", Integer, primary_key=True),
     Column("last_n", Integer, nullable=False),
-)
-
-sync_outbox = Table(
-    "sync_outbox",
-    metadata,
-    Column("seq", BigInteger, primary_key=True),
-    Column("item_id", _uuid, nullable=False, unique=True),
-    Column("kind", Text, nullable=False),
-    Column("payload", JSONB, nullable=False),
-    Column("state", Text, nullable=False),
-    Column("attempts", Integer, nullable=False),
-    Column("last_error_code", Text),
-    Column("created_at", _tz, nullable=False),
-    Column("sent_at", _tz),
 )
 
 age_groups = Table(
@@ -136,57 +124,53 @@ session_methods = Table(
     Column("is_primary", Boolean, nullable=False),
 )
 
-rooms_mirror = Table(
-    "rooms_mirror",
-    metadata,
-    Column("id", _uuid, primary_key=True),
-    Column("internal_label", Text, nullable=False),
-    Column("is_active", Boolean, nullable=False),
-    Column("sort_order", Integer, nullable=False),
-    Column("change_seq", BigInteger, nullable=False),
-    Column("synced_at", _tz, nullable=False, server_default=text("now()")),
-)
-
-appointments_mirror = Table(
-    "appointments_mirror",
-    metadata,
-    Column("id", _uuid, primary_key=True),
-    Column("client_code", Text, nullable=False),
-    Column("therapist_id", _uuid, nullable=False),
-    Column("room_id", _uuid, nullable=False),
-    Column("starts_at", _tz, nullable=False),
-    Column("duration_min", Integer, nullable=False),
-    Column("status", Text, nullable=False),
-    Column("version", Integer, nullable=False),
-    Column("change_seq", BigInteger, nullable=False),
-    Column("deleted_at", _tz),
-    Column("updated_at", _tz, nullable=False),
-    Column("synced_at", _tz, nullable=False, server_default=text("now()")),
-)
-
-sync_state = Table(
-    "sync_state",
-    metadata,
-    Column("key", Text, primary_key=True),
-    Column("value", Text, nullable=False),
-    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
-)
-
-sync_conflicts = Table(
-    "sync_conflicts",
+rooms = Table(
+    "rooms",
     metadata,
     Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
-    Column("outbox_item_id", _uuid),
-    Column("kind", Text, nullable=False),
-    Column("appointment_id", _uuid),
-    Column("client_code", Text),
-    Column("reason_code", Text, nullable=False),
-    Column("proposed_status", Text),
-    Column("cloud_status", Text),
-    Column("author_id", _uuid),
-    Column("status", Text, nullable=False, server_default=text("'open'")),
-    Column("resolution", Text),
+    Column("label", Text, nullable=False),
+    Column("is_active", Boolean, nullable=False, server_default=text("true")),
+    Column("sort_order", Integer, nullable=False, server_default=text("0")),
     Column("created_at", _tz, nullable=False, server_default=text("now()")),
-    Column("resolved_by", _uuid),
-    Column("resolved_at", _tz),
+    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
+    Column("change_seq", BigInteger, nullable=False, server_default=text("0")),
+)
+
+appointments = Table(
+    "appointments",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("client_id", _uuid, ForeignKey("clients.id"), nullable=False),
+    Column("therapist_id", _uuid, ForeignKey("users.id"), nullable=False),
+    Column("room_id", _uuid, ForeignKey("rooms.id"), nullable=False),
+    Column("starts_at", _tz, nullable=False),
+    Column("duration_min", Integer, nullable=False),
+    # Kept by a trigger; the default only satisfies SQLAlchemy on insert.
+    Column("ends_at", _tz, nullable=False, server_default=text("now()")),
+    Column("status", Text, nullable=False, server_default=text("'planned'")),
+    Column("version", Integer, nullable=False, server_default=text("1")),
+    Column("created_by", _uuid, ForeignKey("users.id")),
+    Column("updated_by", _uuid, ForeignKey("users.id")),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
+    Column("deleted_at", _tz),
+    Column("change_seq", BigInteger, nullable=False, server_default=text("0")),
+)
+
+payments = Table(
+    "payments",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("appointment_id", _uuid, ForeignKey("appointments.id"), nullable=False),
+    Column("amount", Numeric(10, 2), nullable=False),
+    Column("currency", Text, nullable=False, server_default=text("'TRY'")),
+    Column("method", Text, nullable=False),
+    Column("paid_at", _tz, nullable=False),
+    Column("recorded_by", _uuid, ForeignKey("users.id"), nullable=False),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
+    Column("voided_at", _tz),
+    Column("voided_by", _uuid, ForeignKey("users.id")),
+    Column("void_reason", Text),
+    Column("change_seq", BigInteger, nullable=False, server_default=text("0")),
 )

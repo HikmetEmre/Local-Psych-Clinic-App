@@ -4,8 +4,7 @@
 #
 # Security rules encoded here (brief §11):
 #   - local-db publishes NO port: it is reachable only inside the compose network.
-#   - local-app binds to 127.0.0.1 only; `tailscale serve` on the host fronts it with HTTPS.
-#   - the sync worker only makes outbound connections.
+#   - local-app binds to 127.0.0.1 only (development; the office install serves the LAN over HTTPS).
 #   - backup: encrypted with a public key; the private key is kept OFFLINE, not here.
 
 name: klinik
@@ -72,22 +71,8 @@ services:
       LOCAL_FERNET_KEYS: ${LOCAL_FERNET_KEYS:?set LOCAL_FERNET_KEYS in the env file}
       LOCAL_AUTH_FERNET_KEY: ${LOCAL_AUTH_FERNET_KEY}
       LOCAL_COOKIE_SECURE: ${LOCAL_COOKIE_SECURE:-true}
-      LOCAL_WEB_BASE_URL: ${LOCAL_WEB_BASE_URL:-}
     ports:
       - "127.0.0.1:8002:8000"
-    depends_on:
-      local-migrate: { condition: service_completed_successfully }
-    healthcheck: *http-healthcheck
-
-  sync-worker:
-    build:
-      <<: *app-build
-      args: { APP: sync }
-    restart: unless-stopped
-    environment:
-      SYNC_LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_sync:${LOCAL_SYNC_DB_PASSWORD}@local-db:5432/kasa
-      SYNC_CLOUD_BASE_URL: ${SYNC_CLOUD_BASE_URL:?set SYNC_CLOUD_BASE_URL in the env file}
-      SYNC_CLOUD_TOKEN: ${SYNC_CLOUD_TOKEN:?set SYNC_CLOUD_TOKEN in the env file}
     depends_on:
       local-migrate: { condition: service_completed_successfully }
     healthcheck: *http-healthcheck
@@ -105,7 +90,6 @@ services:
       PGPASSWORD: ${LOCAL_BACKUP_DB_PASSWORD:?set LOCAL_BACKUP_DB_PASSWORD in the env file}
       AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT (age1...) in the env file}
       RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
-      CLOUD_DUMP_URL: ${BACKUP_CLOUD_DUMP_URL:-}
     volumes:
       - ${BACKUP_HOST_DIR:-../backups}:/backups
       - ${BACKUP_RCLONE_CONFIG_DIR:-../secrets/rclone}:/config/rclone:ro

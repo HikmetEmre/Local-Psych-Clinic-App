@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}{% if appointment %}Randevu: {{ appointment.client_name }}{% else %}Yeni Randevu{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% if appointment %}Randevu: {{ appointment.client_name }} <code class="muted">{{ appointment.client_code }}</code>{% else %}Yeni Randevu{% endif %}</h1>
+  <a class="btn btn--secondary" href="/takvim{% if values.date %}?gun={{ values.date }}{% endif %}">← Takvim</a>
+</div>
+
+{% if conflict %}
+<div class="alert alert--warn" role="alert">
+  <strong>Bu randevu az önce değiştirildi.</strong>
+  Sizin değiştirdiğiniz alanları ({% for f in conflict.fields %}{{ conflict_fields.get(f, f) }}{% if not loop.last %}, {% endif %}{% endfor %})
+  başka biri de değiştirmiş. Aşağıda güncel hâli görüyorsunuz; değişikliğinizi gerekirse yeniden yapın.
+</div>
+{% elif errors %}
+<div class="alert alert--error" role="alert">
+  {% for message in errors.values() %}{{ message }}{% if not loop.last %} {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+{% if appointment %}
+<div class="row">
+  {% if appointment.status != 'planned' %}<span class="badge badge--{{ appointment.status }}">{{ status_labels.get(appointment.status, appointment.status) }}</span>{% endif %}
+  {% if session_id %}<a class="btn btn--secondary btn--small" href="/terapiler/{{ session_id }}">Seans kaydını aç</a>
+  {% elif can_record and appointment.therapist_id == user.id and appointment.status != 'cancelled' %}<a class="btn btn--small" href="/terapiler/yeni?randevu={{ appointment.id }}">Seansı kaydet</a>{% endif %}
+</div>
+{% endif %}
+
+<form class="card" method="post" action="{% if appointment %}/randevular/{{ appointment.id }}{% else %}/randevular{% endif %}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if appointment %}
+  {# What the editor saw. Lets the server merge edits that touch different fields. #}
+  <input type="hidden" name="version" value="{{ values.version }}">
+  <input type="hidden" name="orig_date" value="{{ values.orig_date or values.date }}">
+  <input type="hidden" name="orig_time" value="{{ values.orig_time or values.time }}">
+  <input type="hidden" name="orig_duration_min" value="{{ values.orig_duration_min or values.duration_min }}">
+  <input type="hidden" name="orig_therapist_id" value="{{ values.orig_therapist_id or values.therapist_id }}">
+  <input type="hidden" name="orig_room_id" value="{{ values.orig_room_id or values.room_id }}">
+  {% else %}
+  <input type="hidden" name="back" value="{{ values.back or '' }}">
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="client_id">Danışan</label>
+      {% if appointment %}
+      <input id="client_id" type="text" value="{{ appointment.client_name }} ({{ appointment.client_code }})" disabled>
+      {% else %}
+      <select id="client_id" name="client_id" required>
+        <option value="">— Seçin —</option>
+        {% for c in people %}<option value="{{ c.id }}"{% if values.client_id == c.id|string %} selected{% endif %}>{{ c.full_name }} · {{ c.client_code }}</option>{% endfor %}
+      </select>
+      <div class="muted small">Listede yoksa önce <a href="/danisanlar/yeni">yeni danışan</a> ekleyin.</div>
+      {% endif %}
+      {% if errors.client_id %}<div class="field__error">{{ errors.client_id }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="therapist_id">Terapist</label>
+      <select id="therapist_id" name="therapist_id" required{% if not can_write %} disabled{% endif %}>
+        <option value="">— Seçin —</option>
+        {% for th in therapists %}<option value="{{ th.id }}"{% if values.therapist_id == th.id|string %} selected{% endif %}>{{ th.label }}</option>{% endfor %}
+      </select>
+      {% if errors.therapist_id %}<div class="field__error">{{ errors.therapist_id }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="date">Tarih</label>
+      <input id="date" name="date" type="date" value="{{ values.date or '' }}" required{% if not can_write %} disabled{% endif %}>
+    </div>
+    <div class="field">
+      <label for="time">Saat</label>
+      <input id="time" name="time" type="time" step="300" value="{{ values.time or '' }}" required{% if not can_write %} disabled{% endif %}>
+      {% if errors.starts_at %}<div class="field__error">{{ errors.starts_at }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="duration_min">Süre</label>
+      <select id="duration_min" name="duration_min"{% if not can_write %} disabled{% endif %}>
+        {% for d in durations %}<option value="{{ d }}"{% if values.duration_min == d|string %} selected{% endif %}>{{ d }} dakika</option>{% endfor %}
+        {% if values.duration_min and values.duration_min|int not in durations %}<option value="{{ values.duration_min }}" selected>{{ values.duration_min }} dakika</option>{% endif %}
+      </select>
+      {% if errors.duration_min %}<div class="field__error">{{ errors.duration_min }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="room_id">Oda</label>
+      <select id="room_id" name="room_id"{% if not can_write %} disabled{% endif %}>
+        <option value="">— Terapistin odası —</option>
+        {% for r in rooms %}<option value="{{ r.id }}"{% if values.room_id == r.id|string %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+      </select>
+      {% if errors.room_id %}<div class="field__error">{{ errors.room_id }}</div>{% endif %}
+    </div>
+  </div>
+  {% if can_write and (not appointment or appointment.status == 'planned') %}
+  <div class="form-actions">
+    <button class="btn" type="submit">Kaydet</button>
+    <a class="btn btn--secondary" href="/takvim{% if values.date %}?gun={{ values.date }}{% endif %}">Vazgeç</a>
+  </div>
+  {% endif %}
+</form>
+
+{% if appointment and can_write and appointment.status == 'planned' %}
+<section class="card">
+  <details>
+    <summary class="btn btn--danger btn--small">Randevuyu iptal et…</summary>
+    <form class="stack" method="post" action="/randevular/{{ appointment.id }}/iptal">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="version" value="{{ appointment.version }}">
+      <p>Randevu iptal edilir ve saat boşalır. Kayıt takvimde "İptal" olarak kalır.</p>
+      <button class="btn btn--danger" type="submit">Evet, iptal et</button>
+    </form>
+  </details>
+</section>
+{% endif %}
+{% if appointment and show_payments %}
+<section class="card stack" id="odemeler">
+  <h2>Ödemeler</h2>
+  {% if payment_notice %}<div class="alert" role="status">{{ payment_notice }}</div>{% endif %}
+  {% if payment_error %}<div class="alert alert--error" role="alert">{{ payment_error }}</div>{% endif %}
+  {% if payments %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tarih</th><th>Tutar</th><th>Yöntem</th><th>Kaydeden</th><th></th></tr></thead>
+      <tbody>
+        {% for p in payments %}
+        <tr{% if p.voided %} class="is-voided"{% endif %}>
+          <td>{{ p.paid_at|datetime_tr }}</td>
+          <td class="num">{{ money(p.amount) }}</td>
+          <td>{{ method_labels.get(p.method, p.method) }}</td>
+          <td>{{ p.recorded_by_name }}</td>
+          <td>
+            {% if p.voided %}<span class="badge badge--cancelled">İptal: {{ void_reasons.get(p.void_reason, '') }}</span>
+            {% elif can_pay %}
+            <details class="void">
+              <summary class="btn btn--small btn--secondary">İptal et</summary>
+              <form class="inline-form" method="post" action="/odemeler/{{ p.id }}/iptal">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="geri" value="/randevular/{{ appointment.id }}#odemeler">
+                <select name="reason" aria-label="İptal nedeni" required>
+                  {% for code, label in void_reasons.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+                </select>
+                <button class="btn btn--small btn--danger" type="submit">Ödemeyi iptal et</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th>Toplam</th><th class="num">{{ money(paid_total) }}</th><th colspan="3"></th></tr></tfoot>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Bu randevu için ödeme kaydı yok.</p>
+  {% endif %}
+  {% if can_pay and appointment.status != 'cancelled' %}
+  <form class="inline-form" method="post" action="/odemeler" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+    <input aria-label="Tutar" name="amount" type="text" inputmode="decimal" placeholder="Tutar (₺)" required>
+    <select aria-label="Ödeme yöntemi" name="method" required>
+      {% for code, label in method_labels.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input aria-label="Ödeme tarihi" name="paid_on" type="date" value="{{ today }}" max="{{ today }}">
+    <button class="btn btn--small" type="submit">+ Ödeme ekle</button>
+  </form>
+  <p class="muted small">Kayıtlı ödeme değiştirilemez; hatalıysa iptal edip yeniden girin.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

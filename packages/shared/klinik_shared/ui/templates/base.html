@@ -51,7 +51,7 @@
     <div class="tabs__inner">
       {% for item in nav %}
       {% if not item.permission or item.permission in user.permissions %}
-      <a href="{{ item.href }}"{% if request.url.path.startswith(item.href) %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      <a href="{{ item.href }}"{% if (item.href == "/" and request.url.path == "/") or (item.href != "/" and request.url.path.startswith(item.href)) %} aria-current="page"{% endif %}>{{ item.label }}</a>
       {% endif %}
       {% endfor %}
     </div>

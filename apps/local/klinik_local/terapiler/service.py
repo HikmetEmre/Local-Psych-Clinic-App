@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import FieldCipher
-from klinik_local.outbox import cloud_status_for, enqueue_outcome
+from klinik_local.randevular.service import set_outcome
 from klinik_local.terapiler.catalog import AgeGroup, Catalog, Method, NoAgeGroupError, load_catalog
 from klinik_shared.audit import write_audit
 from klinik_shared.authkit.service import CurrentUser
@@ -38,6 +38,13 @@ TIMELINE_LIMIT = 10
 
 
 # ---------------------------------------------------------------- errors
+
+
+def outcome_for(session_status: str) -> AppointmentStatus:
+    """What the linked appointment should show for a session in this state."""
+    if session_status in (AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW):
+        return AppointmentStatus(session_status)
+    return AppointmentStatus.PLANNED
 
 
 class SessionError(Exception):
@@ -585,9 +592,7 @@ class SessionService:
             else AppointmentStatus.COMPLETED
         )
         self._require_modality_when_completed(status.value, len(methods))
-        cloud_before = await self._check_appointment(
-            conn, actor, data.appointment_id, client.client_code
-        )
+        await self._check_appointment(conn, actor, data.appointment_id, client.id)
 
         number = (
             await conn.execute(
@@ -631,14 +636,8 @@ class SessionService:
                 "has_homework": bool(data.homework),
             },
         )
-        if data.appointment_id is not None and cloud_before is not None:
-            await enqueue_outcome(
-                conn,
-                appointment_id=data.appointment_id,
-                new_status=cloud_status_for(status.value),
-                prev_status=cloud_before,
-                actor_id=actor.id,
-            )
+        if data.appointment_id is not None:
+            await set_outcome(conn, actor, data.appointment_id, outcome_for(status.value))
         return await self._load_item(conn, session_id)
 
     async def _check_appointment(
@@ -646,22 +645,22 @@ class SessionService:
         conn: AsyncConnection,
         actor: CurrentUser,
         appointment_id: UUID | None,
-        client_code: str,
+        client_id: UUID,
     ) -> AppointmentStatus | None:
-        """Validate a link to a cloud appointment; returns the appointment's status."""
+        """Validate a link to an appointment; returns the appointment's status."""
         if appointment_id is None:
             return None
-        m = t.appointments_mirror
+        a = t.appointments
         row = (
             await conn.execute(
-                select(m.c.client_code, m.c.therapist_id, m.c.status).where(
-                    m.c.id == appointment_id, m.c.deleted_at.is_(None)
+                select(a.c.client_id, a.c.therapist_id, a.c.status).where(
+                    a.c.id == appointment_id, a.c.deleted_at.is_(None)
                 )
             )
         ).one_or_none()
         if row is None:
             raise SessionError("appointment_id", "Randevu bulunamadı.", "unknown_appointment")
-        if row.client_code != client_code:
+        if row.client_id != client_id:
             raise SessionError(
                 "appointment_id", "Randevu bu danışana ait değil.", "appointment_client_mismatch"
             )
@@ -773,13 +772,7 @@ class SessionService:
         if methods is not None:
             await self._replace_methods(conn, session_id, methods)
         if row.appointment_id is not None and "status" in changed:
-            await enqueue_outcome(
-                conn,
-                appointment_id=row.appointment_id,
-                new_status=cloud_status_for(status),
-                prev_status=cloud_status_for(row.status),
-                actor_id=actor.id,
-            )
+            await set_outcome(conn, actor, row.appointment_id, outcome_for(status))
         await write_audit(
             conn,
             t.audit_log,
@@ -807,13 +800,7 @@ class SessionService:
             raise SessionNotFound
         if deleted.appointment_id is not None:
             # The record of the outcome is gone, so the booking goes back to planned.
-            await enqueue_outcome(
-                conn,
-                appointment_id=deleted.appointment_id,
-                new_status=AppointmentStatus.PLANNED,
-                prev_status=cloud_status_for(deleted.status),
-                actor_id=actor.id,
-            )
+            await set_outcome(conn, actor, deleted.appointment_id, AppointmentStatus.PLANNED)
         await write_audit(
             conn,
             t.audit_log,
@@ -831,8 +818,7 @@ class SessionService:
             await conn.execute(
                 text(
                     "SELECT m.id, m.starts_at, m.duration_min, m.status FROM therapy_sessions s "
-                    "JOIN clients c ON c.id = s.client_id "
-                    "JOIN appointments_mirror m ON m.client_code = c.client_code "
+                    "JOIN appointments m ON m.client_id = s.client_id "
                     "WHERE s.id = :sid AND s.appointment_id IS NULL AND s.deleted_at IS NULL "
                     "AND m.therapist_id = :me AND m.deleted_at IS NULL "
                     "AND m.status <> 'cancelled' "
@@ -863,25 +849,13 @@ class SessionService:
             raise SessionError(
                 "appointment_id", "Bu seans zaten bir randevuya bağlı.", "already_linked"
             )
-        code = (
-            await conn.execute(
-                select(t.clients.c.client_code).where(t.clients.c.id == row.client_id)
-            )
-        ).scalar_one()
-        cloud_before = await self._check_appointment(conn, actor, appointment_id, code)
+        await self._check_appointment(conn, actor, appointment_id, row.client_id)
         await conn.execute(
             update(s)
             .where(s.c.id == session_id)
             .values(appointment_id=appointment_id, updated_by=actor.id, version=s.c.version + 1)
         )
-        if cloud_before is not None:
-            await enqueue_outcome(
-                conn,
-                appointment_id=appointment_id,
-                new_status=cloud_status_for(row.status),
-                prev_status=cloud_before,
-                actor_id=actor.id,
-            )
+        await set_outcome(conn, actor, appointment_id, outcome_for(row.status))
         await write_audit(
             conn,
             t.audit_log,
