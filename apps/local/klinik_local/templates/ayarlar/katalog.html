@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Terapi kataloğu{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Terapi kataloğu</h1>
+</div>
+{% include "ayarlar/_subnav.html" %}
+
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card stack">
+  <h2>Yaş grupları</h2>
+  <p class="muted small">Aralıklar iki uçta dahildir ve çakışamaz. Üst sınır boş bırakılırsa sınırsızdır.
+    Geçmiş seanslar kaydedildikleri günkü grupta kalır.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ad</th><th>En küçük yaş</th><th>En büyük yaş</th><th>Sıra</th><th>Aktif</th><th></th></tr></thead>
+      <tbody>
+        {% for g in groups %}
+        <tr>
+          <td colspan="6" class="wrap">
+            <form class="inline-form" method="post" action="/ayarlar/katalog/yas-gruplari/{{ g.id }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input aria-label="Ad" name="label_tr" type="text" value="{{ g.label_tr }}" maxlength="80" required>
+              <input aria-label="En küçük yaş" name="min_age" type="number" min="0" max="150" value="{{ g.min_age }}" required>
+              <input aria-label="En büyük yaş" name="max_age" type="number" min="0" max="150" value="{{ g.max_age if g.max_age is not none else '' }}">
+              <input aria-label="Sıra" name="sort_order" type="number" value="{{ g.sort_order }}" required>
+              <label class="inline-check"><input type="checkbox" name="is_active" value="1"{% if g.is_active %} checked{% endif %}> Aktif</label>
+              <button class="btn btn--small btn--secondary" type="submit">Kaydet</button>
+              <code class="muted">{{ g.code }}</code>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <details>
+    <summary class="btn btn--small btn--secondary">+ Yeni yaş grubu</summary>
+    <form class="inline-form" method="post" action="/ayarlar/katalog/yas-gruplari">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input aria-label="Kod" name="code" type="text" placeholder="kod (ör. young_adult)" pattern="[a-z][a-z0-9_]{1,40}" required>
+      <input aria-label="Ad" name="label_tr" type="text" placeholder="Ad" maxlength="80" required>
+      <input aria-label="En küçük yaş" name="min_age" type="number" min="0" placeholder="min" required>
+      <input aria-label="En büyük yaş" name="max_age" type="number" min="0" placeholder="max">
+      <input aria-label="Sıra" name="sort_order" type="number" placeholder="sıra">
+      <button class="btn btn--small" type="submit">Ekle</button>
+    </form>
+  </details>
+</section>
+
+<section class="card stack">
+  <h2>Varsayılan yöntemler</h2>
+  <p class="muted small">İşaretli yöntemler o yaş grubunda öne çıkar (filtre çipleri ve seans formu). Diğerleri yine seçilebilir.</p>
+  <form method="post" action="/ayarlar/katalog/varsayilanlar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="table-wrap">
+      <table class="matrix">
+        <thead>
+          <tr><th>Yöntem</th><th>Tür</th>{% for g in active_groups %}<th>{{ g.label_tr }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for m in methods if m.is_active %}
+          <tr>
+            <td>{{ m.label_tr }}</td>
+            <td class="muted">{{ "Format" if m.kind == "format" else "Yöntem" }}</td>
+            {% for g in active_groups %}
+            <td><input aria-label="{{ m.label_tr }} – {{ g.label_tr }}" type="checkbox" name="default" value="{{ g.id }}:{{ m.id }}"{% if (g.id, m.id) in defaults %} checked{% endif %}></td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">Varsayılanları kaydet</button></div>
+  </form>
+</section>
+
+<section class="card stack">
+  <h2>Yöntemler ve formatlar</h2>
+  <p class="muted small">Kullanılan yöntemler silinmez; pasif yapıldığında yeni seanslarda sunulmaz, geçmiş kayıtlarda görünmeye devam eder.</p>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        {% for m in methods %}
+        <tr>
+          <td class="wrap">
+            <form class="inline-form" method="post" action="/ayarlar/katalog/yontemler/{{ m.id }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input aria-label="Ad" name="label_tr" type="text" value="{{ m.label_tr }}" maxlength="80" required>
+              <input aria-label="Açıklama" name="description_tr" type="text" value="{{ m.description_tr or '' }}" maxlength="300" placeholder="Açıklama (isteğe bağlı)">
+              <span class="badge">{{ "Format" if m.kind == "format" else "Yöntem" }}</span>
+              <label class="inline-check"><input type="checkbox" name="is_active" value="1"{% if m.is_active %} checked{% endif %}> Aktif</label>
+              <button class="btn btn--small btn--secondary" type="submit">Kaydet</button>
+              <code class="muted">{{ m.code }}</code>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <details>
+    <summary class="btn btn--small btn--secondary">+ Yeni yöntem / format</summary>
+    <form class="inline-form" method="post" action="/ayarlar/katalog/yontemler">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input aria-label="Kod" name="code" type="text" placeholder="kod (ör. narrative_therapy)" pattern="[a-z][a-z0-9_]{1,40}" required>
+      <input aria-label="Ad" name="label_tr" type="text" placeholder="Ad" maxlength="80" required>
+      <select aria-label="Tür" name="kind" required>
+        <option value="modality">Yöntem</option>
+        <option value="format">Format</option>
+      </select>
+      <button class="btn btn--small" type="submit">Ekle</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

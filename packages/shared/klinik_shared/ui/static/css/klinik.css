@@ -1001,3 +1001,43 @@ details > summary.btn::-webkit-details-marker {
 details[open] > form {
   margin-top: 12px;
 }
+
+/* ---------- Ayarlar ---------- */
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.inline-form input[type="text"] {
+  width: auto;
+  flex: 1 1 180px;
+}
+
+.inline-form input[type="number"] {
+  width: 90px;
+}
+
+.inline-form select {
+  width: auto;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 400;
+}
+
+details > .inline-form {
+  margin-top: 10px;
+}
+
+table.matrix td:not(:first-child),
+table.matrix th:not(:first-child) {
+  text-align: center;
+}

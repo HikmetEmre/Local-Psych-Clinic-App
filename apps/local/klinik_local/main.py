@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from klinik_local import tables as t
+from klinik_local.ayarlar.katalog import build_router as build_catalog_router
 from klinik_local.ayarlar.routes import build_router as build_settings_router
 from klinik_local.config import Settings, get_settings
 from klinik_local.crypto.fernet import FieldCipher, parse_keys
@@ -101,4 +102,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_therapy_pages(auth, sessions, clients, templates))
     app.include_router(build_clients_router(auth, clients, templates))
     app.include_router(build_settings_router(auth, templates))
+    app.include_router(build_catalog_router(auth, templates))
     return app

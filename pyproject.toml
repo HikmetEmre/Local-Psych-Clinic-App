@@ -59,3 +59,7 @@ packages = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
+
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*"]
+ignore_missing_imports = true
