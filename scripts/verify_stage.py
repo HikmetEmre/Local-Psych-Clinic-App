@@ -3,8 +3,9 @@
     python scripts/verify_stage.py build/stage
 
 Uses only what the installer ships (embedded Python, bundled PostgreSQL): creates a
-temporary database, migrates it, creates users, starts Klinik Kasa and the sync worker,
-then runs a backup, a snapshot and a full restore test. Everything is deleted afterwards.
+temporary database, migrates it, creates the admin, starts the app over HTTPS with a
+freshly made certificate, renders a PDF report, then runs a backup, a snapshot and a full
+restore test. Everything is deleted afterwards.
 Windows services are the one part not covered: registering them needs administrator rights.
 """
 
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import os
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -34,11 +36,11 @@ def check(ok: bool, what: str) -> None:
         raise SystemExit(1)
 
 
-def wait_http(url: str, seconds: int = 60) -> bytes:
+def wait_http(url: str, seconds: int = 60, context: ssl.SSLContext | None = None) -> bytes:
     deadline = time.time() + seconds
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=3) as r:
+            with urllib.request.urlopen(url, timeout=3, context=context) as r:
                 return bytes(r.read())
         except Exception:
             time.sleep(0.5)
@@ -50,7 +52,7 @@ def main(stage: Path) -> None:
     pg = stage / "pgsql" / "bin"
     tmp = Path(tempfile.mkdtemp(prefix="klinik-verify-"))
     data, env_file = tmp / "pgdata", tmp / "klinik.env"
-    pg_port, kasa_port, sync_port = free_port(), free_port(), free_port()
+    pg_port, app_port = free_port(), free_port()
     owner = "verify-owner-pw"
     processes: list[subprocess.Popen[bytes]] = []
 
@@ -102,16 +104,20 @@ def main(stage: Path) -> None:
                     f"LOCAL_BACKUP_DATABASE_URL=postgresql://kasa_backup:backuppw@{base}",
                     f"LOCAL_FERNET_KEYS={fernet}",
                     f"LOCAL_AUTH_FERNET_KEY={auth_key}",
-                    "LOCAL_COOKIE_SECURE=false",
-                    f"SYNC_LOCAL_DATABASE_URL=postgresql+asyncpg://kasa_sync:syncpw@{base}",
+                    "LOCAL_COOKIE_SECURE=true",
+                    "LOCAL_MODE=office",
+                    f"LOCAL_SYNC_DATABASE_URL=postgresql+asyncpg://kasa_sync:syncpw@{base}",
+                    f"LOCAL_TLS_CERT={tmp / 'tls' / 'klinik.crt'}",
+                    f"KLINIK_TLS_CERT={tmp / 'tls' / 'klinik.crt'}",
+                    f"KLINIK_TLS_KEY={tmp / 'tls' / 'klinik.key'}",
+                    "KLINIK_BIND=127.0.0.1",
                     f"BACKUP_AGE_RECIPIENT={age_public}",
                     f"LOCAL_PG_BIN={pg}",
                     f"LOCAL_BACKUP_DIR={tmp / 'backups'}",
                     f"LOCAL_SNAPSHOT_DIR={tmp / 'ozet'}",
                     f"KLINIK_ALEMBIC_INI={stage / 'app' / 'alembic.ini'}",
                     f"KLINIK_MIGRATIONS_DIR={stage / 'app' / 'migrations' / 'local'}",
-                    f"KLINIK_KASA_PORT={kasa_port}",
-                    f"KLINIK_SYNC_PORT={sync_port}",
+                    f"KLINIK_PORT={app_port}",
                 ]
             ),
             encoding="utf-8",
@@ -119,32 +125,53 @@ def main(stage: Path) -> None:
 
         staged("migrate")
         check(True, "migrations and role passwords (embedded Python)")
-        users = staged("manage", "bootstrap-users", str(ROOT / "infra" / "users.example.toml"))
-        check("created terapist.a" in users.stdout, "users created from users.toml")
+        admin = staged("manage", "create-user", "--username", "yonetici", "--name", "Klinik Sahibi")
+        check("created yonetici" in admin.stdout, "admin user created")
+        cert = staged("manage", "generate-cert", "--out", str(tmp / "tls"), "--name", "localhost",
+                      "--name", "127.0.0.1")  # fmt: skip
+        check("SHA-256" in cert.stdout, "HTTPS certificate created")
+        trust = ssl.create_default_context(cafile=str(tmp / "tls" / "klinik.crt"))
 
         clean_env = {
             k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "VIRTUAL_ENV"))
         }
-        for target in ("kasa", "sync"):
-            processes.append(
-                subprocess.Popen(
-                    [str(py), "-m", "klinik_local.service", "--env", str(env_file), target],
-                    cwd=stage / "app",
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=clean_env,
-                )
+        processes.append(
+            subprocess.Popen(
+                [str(py), "-m", "klinik_local.service", "--env", str(env_file), "app"],
+                cwd=stage / "app",
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=clean_env,
             )
-        health = wait_http(f"http://127.0.0.1:{kasa_port}/healthz")
-        check(b'"db":"ok"' in health, "Klinik Kasa answers with its database")
-        login = wait_http(f"http://127.0.0.1:{kasa_port}/login").decode("utf-8")
-        check(
-            "Klinik Kasa" in login and "Giriş yap" in login, "login page renders (templates, theme)"
         )
-        css = wait_http(f"http://127.0.0.1:{kasa_port}/static/ui/css/klinik.css")
+        url = f"https://localhost:{app_port}"
+        health = wait_http(f"{url}/healthz", context=trust)
+        check(b'"db":"ok"' in health, "the app answers over HTTPS with its database")
+        login = wait_http(f"{url}/login", context=trust).decode("utf-8")
+        check("Giriş yap" in login, "login page renders (templates, theme)")
+        css = wait_http(f"{url}/static/ui/css/klinik.css", context=trust)
         check(b"#356650" in css, "static files are served")
-        sync = wait_http(f"http://127.0.0.1:{sync_port}/healthz")
-        check(b'"db":"ok"' in sync, "sync worker starts (idle until a cloud address is set)")
+        api = subprocess.run(
+            [str(py), "-c",
+             "import ssl, sys, urllib.request, urllib.error\n"
+             "ctx = ssl.create_default_context(cafile=sys.argv[2])\n"
+             "req = urllib.request.Request(sys.argv[1], data=b'{}', method='POST')\n"
+             "try:\n    urllib.request.urlopen(req, context=ctx)\n"
+             "except urllib.error.HTTPError as e:\n    print(e.code)",
+             f"{url}/replika/api/pull", str(tmp / "tls" / "klinik.crt")],
+            capture_output=True, text=True, check=False, env=clean_env,
+        )  # fmt: skip
+        check(api.stdout.strip() == "401", "laptop sync API is there and refuses without a token")
+        pdf = subprocess.run(
+            [str(py), "-c",
+             "from datetime import datetime, timezone\n"
+             "from klinik_local.raporlar import pdf\n"
+             "meta = pdf.Meta('Deneme', 'Türkçe: ğüşıöç İ', 'Test', datetime.now(timezone.utc))\n"
+             "data = pdf.build(meta, pdf.heading('Şeker İğne Ölçü', ['Çalışma']))\n"
+             "print(data[:5].decode(), len(data))"],
+            capture_output=True, text=True, check=False, cwd=stage / "app", env=clean_env,
+        )  # fmt: skip
+        check(pdf.stdout.startswith("%PDF-"), "PDF reports render with the bundled font")
 
         backup = staged("job", "backup", "daily")
         check("backup ok" in backup.stdout, "encrypted backup written")
@@ -163,8 +190,8 @@ def main(stage: Path) -> None:
         staged("job", "restore-live", "--identity", str(tmp / "identity.txt"), "--file",
                str(newest), "--yes")  # fmt: skip
         staged("migrate")
-        again = staged("manage", "bootstrap-users", str(ROOT / "infra" / "users.example.toml"))
-        check("already exist" in again.stdout, "restore-live brings the users back")
+        again = staged("manage", "create-user", "--username", "yonetici", "--name", "X")
+        check("exists yonetici" in again.stdout, "restore-live brings the users back")
         print("==> staged files verified")
     finally:
         for proc in processes:

@@ -89,11 +89,11 @@ def stage_python() -> Path:
 
     wheels = BUILD / "wheels"
     shutil.rmtree(wheels, ignore_errors=True)
-    for package in ("klinik-shared", "klinik-local", "klinik-sync"):
+    for package in ("klinik-shared", "klinik-local"):
         run(UV, "build", "--package", package, "--wheel", "--out-dir", wheels, cwd=ROOT)
     requirements = BUILD / "requirements.txt"
     lines: set[str] = set()
-    for package in ("klinik-local", "klinik-sync"):
+    for package in ("klinik-local",):
         out = subprocess.run(
             [UV, "export", "--frozen", "--package", package, "--no-dev", "--no-emit-workspace",
              "--no-hashes", "--format", "requirements-txt"],

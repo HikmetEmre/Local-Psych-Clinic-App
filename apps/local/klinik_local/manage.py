@@ -124,6 +124,37 @@ async def _main(args: argparse.Namespace) -> int:
                 print(f"password set: {role}")
             return 0
 
+        if args.command == "create-user":
+            from uuid import uuid4
+
+            from klinik_shared.authkit.admin import USERNAME_RE
+            from klinik_shared.permissions import PERMISSION_SETS
+
+            username = args.username.strip().lower()
+            if not USERNAME_RE.fullmatch(username):
+                raise SystemExit(f"invalid username: {username!r}")
+            store = AuthStore(
+                t.auth,
+                t.audit_log,
+                MultiFernet(parse_keys(os.environ.get("LOCAL_AUTH_FERNET_KEY"))),
+            )
+            user = {
+                "user_id": uuid4(),
+                "username": username,
+                "display_name": " ".join(args.name.split()),
+                "permissions": PERMISSION_SETS[args.role],
+            }
+            async with engine.begin() as conn:
+                taken = (
+                    await conn.execute(t.users.select().where(t.users.c.username == username))
+                ).first()
+            if taken is not None:
+                print(f"exists {username}")
+                return 0
+            created = await bootstrap_users(engine, store, [user])
+            print(f"created {username}  temporary password: {created[username]}")
+            return 0
+
         if args.command == "bootstrap-users":
             raw = (
                 sys.stdin.buffer.read()
@@ -157,6 +188,10 @@ def main() -> None:
     bootstrap = sub.add_parser("bootstrap-users", help="create users from a TOML file")
     bootstrap.add_argument("file", help='path to the TOML file, or "-" for stdin')
     sub.add_parser("generate-keys", help="print new Fernet keys for the env file")
+    create = sub.add_parser("create-user", help="create one user with a role")
+    create.add_argument("--username", required=True)
+    create.add_argument("--name", required=True)
+    create.add_argument("--role", choices=["admin", "therapist"], default="admin")
     sub.add_parser("verify-restore", help="check a restored backup (RESTORE_DSN)")
     pairing = sub.add_parser(
         "import-pairing", help="read a pairing file (passphrase in KLINIK_PAIRING_PASSPHRASE)"
