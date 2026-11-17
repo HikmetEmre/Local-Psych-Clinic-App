@@ -58,6 +58,49 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"SHA-256: {tls.fingerprint(cert.read_bytes())}")
         return 0
 
+    if args.command == "import-pairing":
+        from klinik_local.replika.pairing import PairingError, env_lines, open_sealed
+
+        passphrase = os.environ.get("KLINIK_PAIRING_PASSPHRASE", "")
+        try:
+            payload = open_sealed(await asyncio.to_thread(Path(args.file).read_bytes), passphrase)
+        except PairingError as exc:
+            print(f"ERROR {exc}", file=sys.stderr)
+            return 3
+        values = env_lines(payload)
+        if payload.get("office_cert"):
+            cert = Path(args.cert_out)
+            await asyncio.to_thread(cert.write_text, payload["office_cert"], encoding="ascii")
+            values["LOCAL_OFFICE_CERT"] = str(cert)
+        for key, value in values.items():
+            print(f"{key}={value}")
+        return 0
+
+    if args.command == "replica-sync":
+        from klinik_local.config import get_settings
+        from klinik_local.replika.laptop import ReplicaSync
+
+        settings = get_settings()
+        if not (settings.sync_database_url and settings.office_url and settings.replica_token):
+            raise SystemExit("laptop settings are incomplete (LOCAL_MODE=replica?)")
+        engine = create_async_engine(settings.sync_database_url)
+        try:
+            pinned = (
+                await asyncio.to_thread(Path(settings.office_cert).read_text, "ascii")
+                if settings.office_cert
+                else None
+            )
+            sync = ReplicaSync(engine, settings.office_url, settings.replica_token, pinned)
+            await sync.mark_replica()
+            status = await sync.run_once()
+        finally:
+            await engine.dispose()
+        if status.last_error:
+            print(f"ERROR {status.last_error}")
+            return 4
+        print(f"OK sent={status.sent} received={status.received}")
+        return 0
+
     if args.command == "verify-restore":
         dsn = os.environ.get("RESTORE_DSN")
         if not dsn:
@@ -115,6 +158,12 @@ def main() -> None:
     bootstrap.add_argument("file", help='path to the TOML file, or "-" for stdin')
     sub.add_parser("generate-keys", help="print new Fernet keys for the env file")
     sub.add_parser("verify-restore", help="check a restored backup (RESTORE_DSN)")
+    pairing = sub.add_parser(
+        "import-pairing", help="read a pairing file (passphrase in KLINIK_PAIRING_PASSPHRASE)"
+    )
+    pairing.add_argument("file")
+    pairing.add_argument("--cert-out", required=True, help="where to save the office certificate")
+    sub.add_parser("replica-sync", help="laptop: mark as copy and sync once with the office")
     cert = sub.add_parser("generate-cert", help="create the office HTTPS certificate")
     cert.add_argument("--out", required=True, help="directory for klinik.crt / klinik.key")
     cert.add_argument("--name", action="append", help="DNS name or IP (repeatable)")

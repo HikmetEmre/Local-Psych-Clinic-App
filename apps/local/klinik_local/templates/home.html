@@ -6,6 +6,7 @@
   {% if can_book %}<a class="btn" href="/randevular/yeni?baslangic={{ day.isoformat() }}T10:00&geri=home">+ Yeni Randevu</a>{% endif %}
 </div>
 {% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+{% if open_conflicts %}<div class="alert alert--warn" role="status">Dizüstü kopyadan gelen {{ open_conflicts }} değişiklik kararınızı bekliyor: <a href="/ayarlar/cakismalar">Çakışmalar</a></div>{% endif %}
 
 {# Re-fetched when the schedule changes anywhere (Server-Sent Events). #}
 <div id="home" class="home" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar" hx-select="#home" hx-swap="outerHTML">

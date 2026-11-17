@@ -13,7 +13,7 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -133,9 +133,21 @@ def parse_client_form(
     return ClientInput(full_name, phone, email, birth_date, assigned), {}
 
 
+# Client numbers per year: the office gives 0001-9000, the laptop copy 9001-9999, so a
+# client registered on the laptop while offline never takes a number the office uses.
+OFFICE_CODE_CAP = 9000
+REPLICA_CODE_FLOOR = 9000
+
+
+class ClientCodesExhausted(RuntimeError):
+    pass
+
+
 class ClientService:
-    def __init__(self, cipher: FieldCipher) -> None:
+    def __init__(self, cipher: FieldCipher, *, code_floor: int = 0) -> None:
         self.cipher = cipher
+        self.code_floor = code_floor
+        self.code_cap = 9999 if code_floor else OFFICE_CODE_CAP
 
     # ------------------------------------------------------------ reads
 
@@ -215,13 +227,16 @@ class ClientService:
         counters = t.client_code_counters
         stmt = (
             pg_insert(counters)
-            .values(year=year, last_n=1)
+            .values(year=year, last_n=self.code_floor + 1)
             .on_conflict_do_update(
-                index_elements=[counters.c.year], set_={"last_n": counters.c.last_n + 1}
+                index_elements=[counters.c.year],
+                set_={"last_n": func.greatest(counters.c.last_n, self.code_floor) + 1},
             )
             .returning(counters.c.last_n)
         )
         number = (await conn.execute(stmt)).scalar_one()
+        if number > self.code_cap:
+            raise ClientCodesExhausted("Bu yılın danışan numaraları doldu.")
         return format_client_code(year, number)
 
     async def create(

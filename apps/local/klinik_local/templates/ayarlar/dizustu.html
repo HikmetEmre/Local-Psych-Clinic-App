@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Dizüstü kopya{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Dizüstü kopya</h1></div>
+{% include "ayarlar/_subnav.html" %}
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card stack">
+  <h2>Nasıl çalışır?</h2>
+  <p>Klinik sahibinin dizüstü bilgisayarına programın bir kopyası kurulur. Dizüstü ofis ağından uzaktayken de
+    çalışır: randevu, seans ve ödeme girilebilir. Ofis ağına bağlandığında değişiklikler her dakika iki yönlü eşitlenir.
+    Aynı kayıt iki yerde birden değiştirildiyse ofisteki hali korunur, dizüstündeki hali
+    <a href="/ayarlar/cakismalar">Çakışmalar</a> sayfasında karar için bekler.</p>
+  <p class="muted small">Kullanıcılar, odalar, terapi kataloğu ve yedekleme yalnızca bu (ofis) bilgisayarında yönetilir.</p>
+</section>
+
+<section class="card stack">
+  <h2>Yeni eşleştirme dosyası</h2>
+  <p>Dosya, dizüstündeki kurulum sihirbazında istenir. İçinde şifreleme anahtarları bulunduğu için seçtiğiniz parolayla
+    şifrelenir. Dosyayı USB bellekle taşıyın, kurulumdan sonra silin; parolayı ayrı bir yerde tutun.</p>
+  <p class="small">Ofis adresi: <code>{{ office_url }}</code>{% if not has_cert %} · <strong>Uyarı:</strong> HTTPS sertifikası bulunamadı (geliştirme ortamı).{% endif %}</p>
+  <form class="form-grid" method="post" action="/ayarlar/dizustu" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="label">Dizüstünün adı</label>
+      <input id="label" name="label" type="text" maxlength="60" placeholder="Klinik sahibinin dizüstü" required>
+    </div>
+    <div class="field">
+      <label for="passphrase">Dosya parolası</label>
+      <input id="passphrase" name="passphrase" type="password" minlength="{{ min_passphrase }}" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label for="passphrase2">Parola (tekrar)</label>
+      <input id="passphrase2" name="passphrase2" type="password" minlength="{{ min_passphrase }}" autocomplete="new-password" required>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">Eşleştirme dosyasını indir</button></div>
+  </form>
+</section>
+
+<section class="card stack">
+  <h2>Eşleştirilmiş dizüstüler</h2>
+  {% if replicas %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ad</th><th>Oluşturuldu</th><th>Son bağlantı</th><th>Durum</th><th></th></tr></thead>
+      <tbody>
+        {% for r in replicas %}
+        <tr>
+          <td>{{ r.label }}</td>
+          <td>{{ r.created_at|datetime_tr }}{% if r.display_name %} · {{ r.display_name }}{% endif %}</td>
+          <td>{% if r.last_seen_at %}{{ r.last_seen_at|datetime_tr }}{% else %}<span class="muted">Henüz bağlanmadı</span>{% endif %}</td>
+          <td>{% if r.revoked_at %}<span class="badge badge--cancelled">İptal edildi</span>{% else %}<span class="badge badge--ok">Etkin</span>{% endif %}</td>
+          <td>{% if not r.revoked_at %}
+            <form method="post" action="/ayarlar/dizustu/{{ r.id }}/iptal">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn--small btn--danger" type="submit">Eşleştirmeyi iptal et</button>
+            </form>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small">Dizüstü kaybolursa eşleştirmeyi hemen iptal edin: ofisle bir daha eşitlenemez.
+    Dizüstünün diski BitLocker ile şifreli olmalıdır.</p>
+  {% else %}
+  <p class="muted">Henüz eşleştirilmiş dizüstü yok.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -15,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
@@ -162,7 +162,15 @@ def build_router(
             "walk_ins": [],
             "weeks": [],
             "paid": {},
+            "open_conflicts": 0,
         }
+        if user.has(Permission.ADMIN_USERS) and not templates.env.globals.get("replica_mode"):
+            async with auth.tx(user) as conn:
+                context["open_conflicts"] = (
+                    await conn.execute(
+                        text("SELECT count(*) FROM replica_conflicts WHERE resolved_at IS NULL")
+                    )
+                ).scalar_one()
         if sees_schedule:
             first = day.replace(day=1) - timedelta(days=day.replace(day=1).weekday())
             async with auth.tx(user) as conn:

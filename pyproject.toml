@@ -62,6 +62,8 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 "apps/local/klinik_local/jobs/**" = ["ASYNC240", "ASYNC221", "S603", "S607"]
 # Report layouts: table rows read best one per line.
 "apps/local/klinik_local/raporlar/reports.py" = ["E501"]
+# Identifiers come from the database catalogue (never from a request), values are bound.
+"apps/local/klinik_local/replika/**" = ["S608", "ASYNC240"]
 
 [tool.mypy]
 python_version = "3.12"

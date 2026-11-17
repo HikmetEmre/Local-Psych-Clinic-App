@@ -114,11 +114,23 @@ def test_app_role_cannot(db: LocalDb, statement: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "table", ["clients", "users", "auth_sessions", "recovery_codes", "user_permissions"]
+    "statement",
+    [
+        "SELECT * FROM auth_sessions",
+        "SELECT * FROM login_attempts",
+        "SELECT * FROM snapshot_keys",
+        "DELETE FROM clients",
+        "DELETE FROM users",
+        "DELETE FROM therapy_sessions",
+        "UPDATE audit_log SET action = 'x'",
+        "DELETE FROM audit_log",
+        "DROP TABLE clients",
+    ],
 )
-def test_sync_role_cannot_read_identity_or_credentials(db: LocalDb, table: str) -> None:
+def test_sync_role_is_limited_to_copying(db: LocalDb, statement: str) -> None:
+    """The laptop-copy sync role copies rows; it cannot erase history or see logins."""
     with pytest.raises(asyncpg.InsufficientPrivilegeError):
-        as_app(db, f"SELECT * FROM {table}", url=db.sync_url)
+        as_app(db, statement, url=db.sync_url)
 
 
 @pytest.mark.parametrize(

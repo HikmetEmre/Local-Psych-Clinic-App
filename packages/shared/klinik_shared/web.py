@@ -139,6 +139,8 @@ def create_base_app(
                 await hub.stop()
             if engine is not None:
                 await engine.dispose()
+            for extra in app.state.extra_engines:
+                await extra.dispose()
 
     app = FastAPI(
         title=f"{CLINIC_NAME} · {tier.app_name}",
@@ -149,6 +151,7 @@ def create_base_app(
     )
     app.state.engine = engine
     app.state.background = []
+    app.state.extra_engines = []  # further engines the app opened (disposed on shutdown)
     app.state.tier = tier
     app.add_middleware(SecurityHeadersMiddleware)
 
