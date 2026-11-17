@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Günlük özet{% endblock %}
+{% block page_class %} page--narrow{% endblock %}
+{% block content %}
+<section class="card stack">
+  <h1>Günlük özet</h1>
+  <p>Her gün 17:00'de takviminiz, danışanlarınız ve son 90 günün seans notlarınız tek bir
+    <strong>şifreli</strong> dosya olarak kliniğin Google Drive klasörüne konur. Evden veya telefondan
+    dosyayı indirip tarayıcıda açın ve bu şifreyi girin. Dosya salt okunurdur.</p>
+  <p class="muted small">Google dosyanın içeriğini göremez. Şifre bu bilgisayarda saklanmaz;
+    unutursanız yeni bir şifre belirleyin, sonraki özet onunla açılır.</p>
+  {% if saved %}<div class="alert" role="status">Özet şifreniz kaydedildi. İlk dosya bugün 17:00'de oluşturulur.</div>{% endif %}
+  {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+  {% if has_key %}
+  <p><span class="badge badge--ok">Açık</span> Şifre son değişiklik: {{ has_key|datetime_tr }}</p>
+  {% else %}
+  <p><span class="badge">Kapalı</span> Şifre belirleyene kadar sizin için özet oluşturulmaz.</p>
+  {% endif %}
+  {% if last %}<p class="muted small">Son özet: {{ last[:16].replace('T', ' ') }}</p>{% endif %}
+
+  <form method="post" action="/hesap/ozet" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="passphrase">{% if has_key %}Yeni özet şifresi{% else %}Özet şifresi{% endif %} (en az {{ min_length }} karakter)</label>
+      <input id="passphrase" name="passphrase" type="password" minlength="{{ min_length }}" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label for="passphrase_repeat">Tekrar</label>
+      <input id="passphrase_repeat" name="passphrase_repeat" type="password" minlength="{{ min_length }}" autocomplete="new-password" required>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">Kaydet</button></div>
+  </form>
+  <p class="muted small">Giriş şifrenizden farklı bir şifre seçin.</p>
+
+  {% if has_key %}
+  <form method="post" action="/hesap/ozet/kapat">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn btn--danger btn--small" type="submit">Özeti kapat</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

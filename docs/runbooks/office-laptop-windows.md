@@ -99,7 +99,7 @@ banner afterwards.
    ```sh
    docker compose --env-file .env -f infra/docker-compose.yml up -d local-db
    docker compose --env-file .env -f infra/docker-compose.yml exec -T local-db \
-     psql -U kasa_migrator -d kasa < infra/backup/roles.sql
+     psql -U kasa_migrator -d kasa < apps/local/klinik_local/jobs/roles.sql
    # decrypt with the offline private key (USB), then:
    docker compose --env-file .env -f infra/docker-compose.yml exec -T local-db \
      pg_restore --exit-on-error --no-owner -U kasa_migrator -d kasa < backup.dump

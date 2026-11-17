@@ -380,7 +380,7 @@ an opt-in browser test against the dev stack.
 ### Found and fixed by testing against real systems
 
 - Backup pruning of an empty folder made every backup report failure (`pipefail`).
-- Restoring into a new server failed: server-wide roles are not in a dump (`infra/backup/roles.sql`).
+- Restoring into a new server failed: server-wide roles are not in a dump (`apps/local/klinik_local/jobs/roles.sql`).
 - Forced password page reloaded itself in a loop (background bell request redirected to it).
 - Pages scrolled sideways on phones (absolutely positioned hidden inputs escaped their box).
 - The web app had write access to the whole outbox; narrowed to one function.

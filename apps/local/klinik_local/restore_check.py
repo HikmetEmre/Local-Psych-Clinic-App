@@ -48,7 +48,10 @@ class RestoreReport:
 
 
 def expected_head() -> str | None:
-    script_location = ROOT / "migrations" / "local"
+    import os
+
+    configured = os.environ.get("KLINIK_MIGRATIONS_DIR")
+    script_location = Path(configured) if configured else ROOT / "migrations" / "local"
     if not script_location.exists():  # installed without the source tree
         return None
     config = Config()

@@ -55,7 +55,12 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106"]
 "tests/**" = ["S101", "S105", "S106", "S603", "S607", "S608"]
-"scripts/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607", "S101", "E501", "S310"]
+# Batch jobs (no request latency to protect): plain file and process calls are fine.
+"apps/local/klinik_local/snapshot.py" = ["ASYNC240"]
+# Embeds a JavaScript program as a string.
+"tests/integration/test_snapshot.py" = ["E501"]
+"apps/local/klinik_local/jobs/**" = ["ASYNC240", "ASYNC221", "S603", "S607"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -67,5 +72,5 @@ packages = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
 known-first-party = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*", "pywebpush", "pywebpush.*"]
+module = ["asyncpg", "asyncpg.*", "pywebpush", "pywebpush.*", "pyrage", "pyrage.*"]
 ignore_missing_imports = true

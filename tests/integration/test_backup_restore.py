@@ -34,6 +34,7 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = "klinik-backup-test"
+ROLES_SQL = ROOT / "apps" / "local" / "klinik_local" / "jobs" / "roles.sql"
 NOTE = "Restore test notu: çocuk oyun sırasında rahatladı."
 
 
@@ -122,7 +123,7 @@ def restore_into_new_server(image: str, identity: Path, encrypted: Path) -> Iter
     docker(
         "run", "-d", "--name", name, "-p", "127.0.0.1::5432",
         "-e", "POSTGRES_PASSWORD=restore", "-e", "POSTGRES_DB=kasa",
-        "-v", f"{encrypted.parent}:/work", "-v", f"{ROOT / 'infra/backup/roles.sql'}:/roles.sql:ro",
+        "-v", f"{encrypted.parent}:/work", "-v", f"{ROLES_SQL}:/roles.sql:ro",
         "postgres:16-alpine",
     )  # fmt: skip
     try:

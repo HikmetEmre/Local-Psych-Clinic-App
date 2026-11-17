@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Günlük özet · Nil Psikoloji</title>
+<style>
+  :root { --green: #356650; --green-dark: #2a5140; --green-50: #f3f8f5; --green-100: #e6efe9;
+          --beige: #fbf8f2; --beige-100: #f5efe3; --beige-300: #dccfb7; --brown: #504845;
+          --text: #2b2826; --muted: #6f6660; --danger: #a4433a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--beige); color: var(--text);
+         font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  header { background: #fff; border-bottom: 1px solid var(--beige-100); padding: 10px 16px;
+           display: flex; align-items: center; gap: 12px; }
+  header img { width: 40px; height: 40px; border-radius: 50%; }
+  .brand { letter-spacing: .16em; text-transform: uppercase; color: var(--green); font-size: .9rem; }
+  .sub { display: block; letter-spacing: 0; text-transform: none; color: var(--muted); font-size: .8rem; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; color: var(--green-dark); }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 24px 0 8px; }
+  .card { background: #fff; border: 1px solid var(--beige-100); border-radius: 10px; padding: 18px; }
+  .lock { max-width: 420px; margin: 40px auto; }
+  label { display: block; font-weight: 600; color: var(--brown); margin-bottom: 4px; font-size: .9rem; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--beige-300); border-radius: 6px; font: inherit; }
+  button { margin-top: 12px; width: 100%; padding: 10px; border: 0; border-radius: 6px;
+           background: var(--green); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button[disabled] { opacity: .6; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .error { color: var(--danger); margin-top: 10px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0; }
+  .tabs button { width: auto; margin: 0; padding: 7px 14px; border-radius: 999px; background: #fff;
+                 color: var(--brown); border: 1px solid var(--beige-300); font-weight: 400; }
+  .tabs button[aria-pressed="true"] { background: var(--green); color: #fff; border-color: var(--green); }
+  .item { background: #fff; border: 1px solid var(--beige-100); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+  .item.mine { border-left: 4px solid var(--green); }
+  .item .top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .item strong { color: var(--green-dark); }
+  .code { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; background: var(--beige-100);
+          padding: 1px 6px; border-radius: 4px; }
+  .note { white-space: pre-wrap; background: var(--green-50); border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+  .day { margin: 18px 0 6px; font-weight: 600; color: var(--brown); }
+  .search { margin-bottom: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <img src="__LOGO__" alt="">
+  <span class="brand">Nil Psikoloji<span class="sub">Günlük özet · salt okunur</span></span>
+</header>
+<main>
+  <section class="card lock" id="lock">
+    <h1>__THERAPIST__</h1>
+    <p class="muted">Oluşturulma: __GENERATED__. Bu dosya şifrelidir; özet şifrenizi girin.</p>
+    <form id="unlock" autocomplete="off">
+      <label for="pw">Özet şifresi</label>
+      <input id="pw" type="password" required autofocus>
+      <button id="go" type="submit">Aç</button>
+      <p class="error" id="err" role="alert" hidden></p>
+    </form>
+    <p class="muted">Şifre bu cihazdan dışarı gönderilmez; çözme işlemi tarayıcınızda yapılır.</p>
+  </section>
+
+  <section id="content" hidden>
+    <h1 id="title"></h1>
+    <p class="muted" id="meta"></p>
+    <div class="tabs" role="group" aria-label="Bölümler">
+      <button type="button" data-tab="schedule" aria-pressed="true">Takvim (14 gün)</button>
+      <button type="button" data-tab="sessions" aria-pressed="false">Seanslarım (90 gün)</button>
+      <button type="button" data-tab="clients" aria-pressed="false">Danışanlarım</button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Ara: ad, kod…">
+    <div id="schedule"></div>
+    <div id="sessions" hidden></div>
+    <div id="clients" hidden></div>
+  </section>
+</main>
+<script>
+/*__NOBLE__*/
+</script>
+<script>
+"use strict";
+(function () {
+  var P = /*__PARAMS__*/null;
+  var enc = new TextEncoder();
+  function b64(s) { var raw = atob(s), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out; }
+
+  async function decrypt(passphrase) {
+    var salt = b64(P.salt), nonce = b64(P.nonce), data = b64(P.ciphertext), aad = enc.encode(P.aad);
+    var subtle = window.crypto && window.crypto.subtle;
+    if (subtle) {
+      try {
+        var base = await subtle.importKey("raw", enc.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+        var key = await subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: P.iterations, hash: "SHA-256" },
+          base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+        var plain = await subtle.decrypt({ name: "AES-GCM", iv: nonce, additionalData: aad }, key, data);
+        return new TextDecoder().decode(plain);
+      } catch (e) { if (e && e.name === "OperationError") throw e; }
+    }
+    // No WebCrypto here (e.g. a file opened from the Drive app): bundled implementation.
+    var k = noble.pbkdf2(noble.sha256, enc.encode(passphrase), salt, { c: P.iterations, dkLen: 32 });
+    return new TextDecoder().decode(noble.gcm(k, nonce, aad).decrypt(data));
+  }
+
+  function el(tag, cls, text) { var e = document.createElement(tag);
+    if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  function render(d) {
+    document.getElementById("title").textContent = d.therapist;
+    document.getElementById("meta").textContent = "Oluşturulma: " + d.generated +
+      " · " + d.schedule.length + " randevu · " + d.sessions.length + " seans · " + d.clients.length + " danışan";
+
+    var sch = document.getElementById("schedule"), lastDay = null;
+    if (!d.schedule.length) sch.appendChild(el("p", "muted", "Önümüzdeki 14 günde randevu yok."));
+    d.schedule.forEach(function (a) {
+      if (a.day !== lastDay) { sch.appendChild(el("div", "day", a.when.slice(0, 10))); lastDay = a.day; }
+      var it = el("div", "item" + (a.mine ? " mine" : "")), top = el("div", "top");
+      top.appendChild(el("strong", "", a.when.slice(11) + " · " + a.client));
+      top.appendChild(el("span", "muted", a.therapist + " · " + a.room + " · " + a.status));
+      it.appendChild(top); it.appendChild(el("span", "code", a.code)); sch.appendChild(it);
+    });
+
+    var ses = document.getElementById("sessions");
+    if (!d.sessions.length) ses.appendChild(el("p", "muted", "Son 90 günde seans kaydı yok."));
+    d.sessions.forEach(function (s) {
+      var it = el("div", "item"), top = el("div", "top");
+      top.appendChild(el("strong", "", s.client + " · #" + s.number));
+      top.appendChild(el("span", "muted", s.when + " · " + s.status));
+      it.appendChild(top);
+      it.appendChild(el("div", "muted", [s.format, s.methods].filter(Boolean).join(" · ")));
+      if (s.notes) it.appendChild(el("div", "note", s.notes));
+      if (s.homework) it.appendChild(el("div", "note", "Ödev: " + s.homework));
+      it.appendChild(el("span", "code", s.code)); ses.appendChild(it);
+    });
+
+    var cli = document.getElementById("clients");
+    if (!d.clients.length) cli.appendChild(el("p", "muted", "Danışan yok."));
+    d.clients.forEach(function (c) {
+      var it = el("div", "item"), top = el("div", "top");
+      top.appendChild(el("strong", "", c.name));
+      top.appendChild(el("span", "code", c.code)); it.appendChild(top);
+      it.appendChild(el("div", "muted", [c.phone, c.email, c.birth && ("Doğum: " + c.birth)].filter(Boolean).join(" · ")));
+      cli.appendChild(it);
+    });
+
+    document.querySelectorAll(".tabs button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".tabs button").forEach(function (o) {
+          o.setAttribute("aria-pressed", String(o === b));
+          document.getElementById(o.getAttribute("data-tab")).hidden = o !== b;
+        });
+      });
+    });
+    document.getElementById("q").addEventListener("input", function (e) {
+      var q = e.target.value.toLocaleLowerCase("tr");
+      document.querySelectorAll("#content .item").forEach(function (it) {
+        it.hidden = q && it.textContent.toLocaleLowerCase("tr").indexOf(q) === -1;
+      });
+    });
+  }
+
+  document.getElementById("unlock").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var go = document.getElementById("go"), err = document.getElementById("err");
+    go.disabled = true; go.textContent = "Açılıyor…"; err.hidden = true;
+    try {
+      var data = JSON.parse(await decrypt(document.getElementById("pw").value));
+      document.getElementById("pw").value = "";
+      document.getElementById("lock").hidden = true;
+      render(data);
+      document.getElementById("content").hidden = false;
+    } catch (x) {
+      err.textContent = "Şifre hatalı veya dosya bozuk."; err.hidden = false;
+      go.disabled = false; go.textContent = "Aç";
+    }
+  });
+})();
+</script>
+</body>
+</html>

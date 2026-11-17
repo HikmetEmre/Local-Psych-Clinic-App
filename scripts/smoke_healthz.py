@@ -20,7 +20,7 @@ def main() -> int:
     failed = False
     for service, url in SERVICES.items():
         try:
-            with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310
+            with urllib.request.urlopen(url, timeout=5) as response:
                 body = json.load(response)
         except Exception as exc:
             print(f"FAIL {service}: {exc}")

@@ -56,7 +56,7 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 docker cp "$(hostpath "$workdir/backup.dump")" "$scratch:/tmp/backup.dump"
-docker cp "$(hostpath "$PWD/infra/backup/roles.sql")" "$scratch:/tmp/roles.sql"
+docker cp "$(hostpath "$PWD/apps/local/klinik_local/jobs/roles.sql")" "$scratch:/tmp/roles.sql"
 # Server-wide roles are not part of a database dump; create them first, as on a new laptop.
 docker exec "$scratch" psql -q -v ON_ERROR_STOP=1 -U postgres -d kasa -f /tmp/roles.sql
 docker exec "$scratch" pg_restore --exit-on-error --no-owner -U postgres -d kasa /tmp/backup.dump
