@@ -119,8 +119,9 @@ def create_base_app(
     public_home: bool = True,
     templates_dir: Path | None = None,
     nav: tuple[NavItem, ...] = (),
+    search_path: str | None = None,
 ) -> FastAPI:
-    engine = make_engine(database_url)
+    engine = make_engine(database_url, search_path=search_path)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

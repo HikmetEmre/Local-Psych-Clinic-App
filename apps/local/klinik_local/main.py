@@ -12,7 +12,6 @@ from fastapi.templating import Jinja2Templates
 
 from klinik_local import tables as t
 from klinik_local.ayarlar.katalog import build_router as build_catalog_router
-from klinik_local.ayarlar.routes import build_router as build_settings_router
 from klinik_local.config import Settings, get_settings
 from klinik_local.crypto.fernet import FieldCipher, parse_keys
 from klinik_local.danisanlar.routes import build_router as build_clients_router
@@ -20,6 +19,7 @@ from klinik_local.danisanlar.service import ClientService
 from klinik_local.terapiler.api import build_api_router as build_therapy_api
 from klinik_local.terapiler.routes import build_router as build_therapy_pages
 from klinik_local.terapiler.service import SessionService
+from klinik_shared.authkit.admin import build_users_router
 from klinik_shared.authkit.service import AuthPolicy, AuthStore, CurrentUser
 from klinik_shared.authkit.web import AuthKit, AuthWebConfig
 from klinik_shared.permissions import Permission
@@ -101,6 +101,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_therapy_api(auth, sessions))
     app.include_router(build_therapy_pages(auth, sessions, clients, templates))
     app.include_router(build_clients_router(auth, clients, templates))
-    app.include_router(build_settings_router(auth, templates))
+    app.include_router(build_users_router(auth, templates))
     app.include_router(build_catalog_router(auth, templates))
     return app

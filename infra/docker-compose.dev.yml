@@ -29,9 +29,14 @@ services:
       dockerfile: infra/Dockerfile
       args: { APP: cloud }
     restart: "no"
-    command: ["alembic", "-n", "cloud", "upgrade", "head"]
+    command:
+      - sh
+      - -c
+      - alembic -n cloud upgrade head && python -m klinik_cloud.manage set-role-passwords
     environment:
       CLOUD_MIGRATION_DATABASE_URL: postgresql+asyncpg://cloud_migrator:${CLOUD_DB_PASSWORD}@cloud-db:5432/klinik_cloud
+      CLOUD_APP_DB_PASSWORD: ${CLOUD_APP_DB_PASSWORD:?}
+      CLOUD_AUTH_FERNET_KEY: ${CLOUD_AUTH_FERNET_KEY:?}
     depends_on:
       cloud-db: { condition: service_healthy }
 
@@ -41,7 +46,10 @@ services:
       dockerfile: infra/Dockerfile
       args: { APP: cloud }
     environment:
-      CLOUD_DATABASE_URL: postgresql+asyncpg://cloud_migrator:${CLOUD_DB_PASSWORD}@cloud-db:5432/klinik_cloud
+      # cloud_app is not the owner of the tables.
+      CLOUD_DATABASE_URL: postgresql+asyncpg://cloud_app:${CLOUD_APP_DB_PASSWORD}@cloud-db:5432/klinik_cloud
+      CLOUD_AUTH_FERNET_KEY: ${CLOUD_AUTH_FERNET_KEY:?}
+      CLOUD_COOKIE_SECURE: "false"
     ports:
       - "127.0.0.1:8001:8000"
     depends_on:

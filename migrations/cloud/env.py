@@ -26,6 +26,9 @@ def _database_url() -> str:
 
 
 def _run(connection: Connection) -> None:
+    # Unqualified names land in "app". Extensions live in "public" (plain Postgres) or
+    # "extensions" (Supabase); a schema that does not exist is ignored.
+    connection.execute(text(f'SET search_path TO "{SCHEMA}", public, extensions'))
     context.configure(
         connection=connection,
         target_metadata=None,

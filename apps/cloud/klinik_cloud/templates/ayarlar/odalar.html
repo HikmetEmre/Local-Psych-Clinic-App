@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Odalar{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Odalar</h1></div>
+{% include "ayarlar/_subnav.html" %}
+{% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card stack">
+  <h2>Odalar</h2>
+  <p class="muted small">Oda adı kısa olmalı (en fazla 30 karakter). Buraya danışan bilgisi yazmayın.</p>
+  {% for r in rooms %}
+  <form class="inline-form" method="post" action="/ayarlar/odalar/{{ r.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input aria-label="Oda adı" name="internal_label" type="text" value="{{ r.internal_label }}" maxlength="30" required>
+    <input aria-label="Sıra" name="sort_order" type="number" value="{{ r.sort_order }}">
+    <label class="inline-check"><input type="checkbox" name="is_active" value="1"{% if r.is_active %} checked{% endif %}> Aktif</label>
+    <button class="btn btn--small btn--secondary" type="submit">Kaydet</button>
+  </form>
+  {% else %}
+  <p class="muted">Henüz oda yok. Randevu verebilmek için en az bir oda ekleyin.</p>
+  {% endfor %}
+  <form class="inline-form" method="post" action="/ayarlar/odalar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input aria-label="Yeni oda adı" name="internal_label" type="text" maxlength="30" placeholder="Yeni oda (ör. Oda 1)" required>
+    <button class="btn btn--small" type="submit">+ Oda ekle</button>
+  </form>
+</section>
+
+<section class="card stack">
+  <h2>Terapistlerin varsayılan odası</h2>
+  <p class="muted small">Yeni randevuda terapist seçilince bu oda önerilir.</p>
+  {% for th in therapists %}
+  <form class="inline-form" method="post" action="/ayarlar/odalar/varsayilan/{{ th.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <span class="inline-name">{{ th.label }}</span>
+    <select aria-label="{{ th.label }} varsayılan oda" name="room_id">
+      <option value="">— Yok —</option>
+      {% for r in rooms if r.is_active %}<option value="{{ r.id }}"{% if defaults.get(th.id) == r.id %} selected{% endif %}>{{ r.internal_label }}</option>{% endfor %}
+    </select>
+    <button class="btn btn--small btn--secondary" type="submit">Kaydet</button>
+  </form>
+  {% endfor %}
+</section>
+{% endblock %}

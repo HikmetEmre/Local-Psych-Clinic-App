@@ -1,29 +1,92 @@
-"""Ayarlar tab: user and permission administration (admin.users).
+"""User administration shared by both tiers: pages (admin.users) and operator commands.
 
-Users are created with the bootstrap command so their UUIDs match in both tiers.
+Users are created only by the bootstrap command, from one TOML file, so that a user
+has the same id in the cloud and in the office.
 """
 
 from __future__ import annotations
 
+import tomllib
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from klinik_local import tables as t
-from klinik_shared.authkit.service import CurrentUser
+from klinik_shared.authkit.service import AuthStore, CurrentUser
 from klinik_shared.authkit.web import AuthKit
 from klinik_shared.labels_tr import PERMISSION_LABELS
-from klinik_shared.permissions import ALL_PERMISSION_VALUES, Permission
+from klinik_shared.permissions import ALL_PERMISSION_VALUES, Permission, expand_sets
 
 USERS_PATH = "/ayarlar/kullanicilar"
 
+# ---------------------------------------------------------------- operator commands
 
-def build_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
+
+async def set_role_passwords(engine: AsyncEngine, passwords: dict[str, str]) -> list[str]:
+    """Give application roles a password and LOGIN. Returns the roles that were set."""
+    done = []
+    async with engine.begin() as conn:
+        for role, password in passwords.items():
+            # ALTER ROLE takes no bind parameters; format() quotes both parts safely.
+            statement = (
+                await conn.execute(
+                    text(
+                        "SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', "
+                        "CAST(:role AS text), CAST(:password AS text))"
+                    ),
+                    {"role": role, "password": password},
+                )
+            ).scalar_one()
+            await conn.execute(text(statement))
+            done.append(role)
+    return done
+
+
+def parse_users_file(raw: bytes) -> list[dict[str, Any]]:
+    data = tomllib.loads(raw.decode("utf-8"))
+    users = data.get("users")
+    if not isinstance(users, list) or not users:
+        raise ValueError("the file needs at least one [[users]] entry")
+    parsed = [
+        {
+            "user_id": UUID(str(entry["id"])),
+            "username": str(entry["username"]),
+            "display_name": str(entry["display_name"]),
+            "permissions": expand_sets(*entry["sets"]),
+        }
+        for entry in users
+    ]
+    if len({u["user_id"] for u in parsed}) != len(parsed):
+        raise ValueError("duplicate user id")
+    return parsed
+
+
+async def bootstrap_users(
+    engine: AsyncEngine, store: AuthStore, users: list[dict[str, Any]]
+) -> dict[str, str]:
+    """Create missing users. Returns {username: temporary password} for the new ones."""
+    created: dict[str, str] = {}
+    async with engine.begin() as conn:
+        for user in users:
+            temporary = await store.ensure_user(conn, **user)
+            if temporary is not None:
+                created[user["username"]] = temporary
+    return created
+
+
+# ---------------------------------------------------------------- pages
+
+
+def build_users_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
+    """Ayarlar → Kullanıcılar. Each app supplies its own ``ayarlar/_subnav.html``."""
     router = APIRouter(prefix="/ayarlar", include_in_schema=False)
     admin = Depends(auth.require(Permission.ADMIN_USERS))
+    users_table = auth.store.t.users
+    grants_table = auth.store.t.user_permissions
 
     async def users_page(
         request: Request,
@@ -35,14 +98,16 @@ def build_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
         status_code: int = 200,
     ) -> Response:
         async with auth.tx(user) as conn:
-            rows = (await conn.execute(select(t.users).order_by(t.users.c.display_name))).all()
-            grants = (await conn.execute(select(t.user_permissions))).all()
+            rows = (
+                await conn.execute(select(users_table).order_by(users_table.c.display_name))
+            ).all()
+            grants = (await conn.execute(select(grants_table))).all()
         by_user: dict[UUID, set[str]] = {}
         for grant in grants:
             by_user.setdefault(grant.user_id, set()).add(grant.permission)
         response = templates.TemplateResponse(
             request,
-            "ayarlar/users.html",
+            "ayarlar_users.html",
             {
                 "users": rows,
                 "grants": by_user,
@@ -125,7 +190,9 @@ def build_router(auth: AuthKit, templates: Jinja2Templates) -> APIRouter:
             )
         async with auth.tx(user) as conn:
             row = (
-                await conn.execute(select(t.users.c.display_name).where(t.users.c.id == user_id))
+                await conn.execute(
+                    select(users_table.c.display_name).where(users_table.c.id == user_id)
+                )
             ).one_or_none()
             if row is None:
                 return await users_page(

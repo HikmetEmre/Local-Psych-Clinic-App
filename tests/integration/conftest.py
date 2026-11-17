@@ -80,3 +80,11 @@ def local_db(fresh_database: str) -> object:
     from support.local import prepare_local_db
 
     return prepare_local_db(fresh_database)
+
+
+@pytest.fixture
+def cloud_db(fresh_database: str) -> object:
+    """A migrated cloud-tier database (schema "app") with the cloud_app role ready."""
+    from support.cloud import prepare_cloud_db
+
+    return prepare_cloud_db(fresh_database)

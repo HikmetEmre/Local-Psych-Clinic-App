@@ -10,10 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 DbStatus = Literal["ok", "down", "not_configured"]
 
 
-def make_engine(database_url: str | None) -> AsyncEngine | None:
+def make_engine(database_url: str | None, *, search_path: str | None = None) -> AsyncEngine | None:
     if not database_url:
         return None
-    return create_async_engine(database_url, pool_pre_ping=True, pool_size=5, max_overflow=5)
+    connect_args = {"server_settings": {"search_path": search_path}} if search_path else {}
+    return create_async_engine(
+        database_url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=5,
+        connect_args=connect_args,
+    )
 
 
 async def db_status(engine: AsyncEngine | None) -> DbStatus:

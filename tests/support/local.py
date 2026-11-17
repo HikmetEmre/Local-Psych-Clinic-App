@@ -51,6 +51,10 @@ class LocalDb:
     def dsn(self, url: str | None = None) -> str:
         return (url or self.owner_url).replace("+asyncpg", "")
 
+    @property
+    def search_path(self) -> str | None:
+        return None
+
 
 def alembic_config(chain: str) -> Config:
     config = Config(str(ROOT / "alembic.ini"), ini_section=chain)
@@ -183,9 +187,11 @@ def csrf_in(html: str) -> str:
 class Kasa:
     """One browser talking to one instance of the local app."""
 
-    def __init__(self, db: LocalDb, **settings: Any) -> None:
+    cookie_name = "kasa_session"
+
+    def __init__(self, db: Any, *, app: Any = None, **settings: Any) -> None:
         self.db = db
-        self.app = create_app(
+        self.app = app or create_app(
             Settings(
                 database_url=db.app_url,
                 fernet_keys=FERNET_KEY,
@@ -298,7 +304,7 @@ class Kasa:
         return result
 
     def session_cookie(self) -> str | None:
-        return self.client.cookies.get("kasa_session")
+        return self.client.cookies.get(self.cookie_name)
 
 
 def ago(**kwargs: float) -> datetime:

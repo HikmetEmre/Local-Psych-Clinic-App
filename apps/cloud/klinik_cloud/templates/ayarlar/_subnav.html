@@ -1,0 +1,8 @@
+<nav class="segments" aria-label="Ayarlar">
+  {% if "admin.users" in user.permissions %}
+  <a class="segment" href="/ayarlar/kullanicilar"{% if request.url.path.startswith('/ayarlar/kullanicilar') %} aria-current="page"{% endif %}>Kullanıcılar</a>
+  {% endif %}
+  {% if "admin.catalog" in user.permissions %}
+  <a class="segment" href="/ayarlar/odalar"{% if request.url.path.startswith('/ayarlar/odalar') %} aria-current="page"{% endif %}>Odalar</a>
+  {% endif %}
+</nav>

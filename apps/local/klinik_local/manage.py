@@ -13,18 +13,17 @@ import argparse
 import asyncio
 import os
 import sys
-import tomllib
-from typing import Any
-from uuid import UUID
+from pathlib import Path
 
 from cryptography.fernet import MultiFernet
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import generate_key, parse_keys
+from klinik_shared.authkit.admin import bootstrap_users, parse_users_file, set_role_passwords
 from klinik_shared.authkit.service import AuthStore
-from klinik_shared.permissions import expand_sets
+
+__all__ = ["bootstrap_users", "main", "parse_users_file", "set_role_passwords"]
 
 ROLE_PASSWORD_ENV = {
     "kasa_app": "LOCAL_APP_DB_PASSWORD",
@@ -38,59 +37,6 @@ def _owner_engine() -> AsyncEngine:
     if not url:
         raise SystemExit("LOCAL_MIGRATION_DATABASE_URL is not set")
     return create_async_engine(url)
-
-
-async def set_role_passwords(engine: AsyncEngine, passwords: dict[str, str]) -> list[str]:
-    """Give the application roles a password and LOGIN. Returns the roles that were set."""
-    done = []
-    async with engine.begin() as conn:
-        for role, password in passwords.items():
-            # ALTER ROLE takes no bind parameters; format() quotes both parts safely.
-            statement = (
-                await conn.execute(
-                    text(
-                        "SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', "
-                        "CAST(:role AS text), CAST(:password AS text))"
-                    ),
-                    {"role": role, "password": password},
-                )
-            ).scalar_one()
-            await conn.execute(text(statement))
-            done.append(role)
-    return done
-
-
-def parse_users_file(raw: bytes) -> list[dict[str, Any]]:
-    data = tomllib.loads(raw.decode("utf-8"))
-    users = data.get("users")
-    if not isinstance(users, list) or not users:
-        raise ValueError("the file needs at least one [[users]] entry")
-    parsed = []
-    for entry in users:
-        parsed.append(
-            {
-                "user_id": UUID(str(entry["id"])),
-                "username": str(entry["username"]),
-                "display_name": str(entry["display_name"]),
-                "permissions": expand_sets(*entry["sets"]),
-            }
-        )
-    if len({u["user_id"] for u in parsed}) != len(parsed):
-        raise ValueError("duplicate user id")
-    return parsed
-
-
-async def bootstrap_users(
-    engine: AsyncEngine, store: AuthStore, users: list[dict[str, Any]]
-) -> dict[str, str]:
-    """Create missing users. Returns {username: temporary password} for the new ones."""
-    created: dict[str, str] = {}
-    async with engine.begin() as conn:
-        for user in users:
-            temporary = await store.ensure_user(conn, **user)
-            if temporary is not None:
-                created[user["username"]] = temporary
-    return created
 
 
 async def _main(args: argparse.Namespace) -> int:
@@ -115,7 +61,11 @@ async def _main(args: argparse.Namespace) -> int:
             return 0
 
         if args.command == "bootstrap-users":
-            raw = sys.stdin.buffer.read() if args.file == "-" else open(args.file, "rb").read()  # noqa: ASYNC230, SIM115
+            raw = (
+                sys.stdin.buffer.read()
+                if args.file == "-"
+                else await asyncio.to_thread(Path(args.file).read_bytes)
+            )
             store = AuthStore(
                 t.auth,
                 t.audit_log,

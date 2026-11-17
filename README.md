@@ -43,7 +43,17 @@ docker compose --env-file infra/dev.env -f infra/docker-compose.yml -f infra/doc
 
 Permissions, deactivation, password reset and 2FA reset are then managed in **Ayarlar → Kullanıcılar**.
 
-New keys for a real installation: `python -m klinik_local.manage generate-keys`.
+The cloud tier (Klinik Web) uses the same file, so the two therapists have the same ids in both:
+
+```sh
+docker compose --env-file infra/dev.env -f infra/docker-compose.yml -f infra/docker-compose.dev.yml   run --rm -T cloud-migrate python -m klinik_cloud.manage bootstrap-users - < infra/users.example.toml
+```
+
+New keys for a real installation: `python -m klinik_local.manage generate-keys` (office) and
+`python -m klinik_cloud.manage generate-keys` (cloud).
+
+Rooms are added in Klinik Web under **Ayarlar → Odalar**. Client codes reach the cloud from the
+office through the sync worker (milestone 5).
 
 ## Migrations
 

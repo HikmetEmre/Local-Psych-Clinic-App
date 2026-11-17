@@ -16,7 +16,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Needed for the no-double-booking exclusion constraints (M4).
-    op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+    op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public")
 
 
 def downgrade() -> None:
