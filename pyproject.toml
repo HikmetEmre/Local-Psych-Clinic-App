@@ -35,7 +35,10 @@ addopts = "--import-mode=importlib -ra"
 pythonpath = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-markers = ["integration: needs a real PostgreSQL (Docker)"]
+markers = [
+    "integration: needs a real PostgreSQL (Docker)",
+    "e2e: real browsers against the running dev stack (opt-in)",
+]
 
 [tool.ruff]
 line-length = 100
@@ -62,5 +65,5 @@ packages = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
 known-first-party = ["klinik_shared", "klinik_cloud", "klinik_local", "klinik_sync"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*"]
+module = ["asyncpg", "asyncpg.*", "pywebpush", "pywebpush.*"]
 ignore_missing_imports = true

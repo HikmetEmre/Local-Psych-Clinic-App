@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -124,10 +125,20 @@ def create_base_app(
     engine = make_engine(database_url, search_path=search_path)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        if engine is not None:
-            await engine.dispose()
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # Long-running jobs registered by the app (push delivery, reminders, ...).
+        tasks = [asyncio.create_task(job()) for job in app.state.background]
+        try:
+            yield
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            hub = getattr(app.state, "hub", None)
+            if hub is not None:
+                await hub.stop()
+            if engine is not None:
+                await engine.dispose()
 
     app = FastAPI(
         title=f"{CLINIC_NAME} · {tier.app_name}",
@@ -137,6 +148,7 @@ def create_base_app(
         openapi_url=None,
     )
     app.state.engine = engine
+    app.state.background = []
     app.state.tier = tier
     app.add_middleware(SecurityHeadersMiddleware)
 

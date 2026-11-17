@@ -1292,3 +1292,96 @@ tbody tr:hover .cal__cell {
   font-weight: 600;
   color: var(--c);
 }
+
+/* ---------- Bildirimler ---------- */
+
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+.bell:hover {
+  background: var(--green-50);
+}
+
+.bell__count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--white);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.inbox {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.inbox__item + .inbox__item {
+  border-top: 1px solid var(--beige-100);
+}
+
+.inbox__item form {
+  margin: 0;
+}
+
+.inbox__open {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  width: 100%;
+  padding: 12px 6px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.inbox__open:hover {
+  background: var(--green-50);
+}
+
+.inbox__title {
+  font-weight: 600;
+}
+
+.inbox__body {
+  grid-column: 1;
+  color: var(--text-muted);
+}
+
+.inbox__time {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.inbox__item.is-unread .inbox__title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--green-700);
+  vertical-align: middle;
+}

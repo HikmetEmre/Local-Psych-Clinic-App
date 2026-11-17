@@ -21,6 +21,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from klinik_cloud import tables as t
+from klinik_cloud.bildirimler.push import generate_vapid_keys
 from klinik_cloud.sync_api import create_sync_token, register_sync_token
 from klinik_shared.authkit.admin import bootstrap_users, parse_users_file, set_role_passwords
 from klinik_shared.authkit.service import AuthStore
@@ -43,6 +44,10 @@ def auth_store() -> AuthStore:
 async def _main(args: argparse.Namespace) -> int:
     if args.command == "generate-keys":
         print(f"CLOUD_AUTH_FERNET_KEY={Fernet.generate_key().decode()}")
+        private, public = generate_vapid_keys()
+        print(f"CLOUD_VAPID_PRIVATE_KEY={private}")
+        print(f"CLOUD_VAPID_PUBLIC_KEY={public}")
+        print("CLOUD_VAPID_SUBJECT=mailto:<the clinic's contact address>")
         return 0
     engine = owner_engine()
     try:

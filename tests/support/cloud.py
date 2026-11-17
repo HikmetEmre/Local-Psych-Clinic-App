@@ -116,5 +116,7 @@ class Web(Kasa):
     cookie_name = "web_session"
 
     def __init__(self, db: CloudDb) -> None:
-        app = create_app(Settings(database_url=db.app_url, auth_fernet_key=CLOUD_AUTH_KEY))
+        app = create_app(
+            Settings(database_url=db.app_url, auth_fernet_key=CLOUD_AUTH_KEY, run_workers=False)
+        )
         super().__init__(db, app=app)

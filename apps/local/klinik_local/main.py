@@ -25,6 +25,7 @@ from klinik_shared.authkit.admin import build_users_router
 from klinik_shared.authkit.service import AuthPolicy, AuthStore, CurrentUser
 from klinik_shared.authkit.web import AuthKit, AuthWebConfig
 from klinik_shared.permissions import Permission
+from klinik_shared.realtime import Hub, asyncpg_dsn
 from klinik_shared.web import NavItem, Tier, create_base_app
 
 TIER = Tier(
@@ -91,6 +92,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         templates,
     )
     auth.install(app)
+
+    hub = Hub(asyncpg_dsn(settings.database_url), broadcast={"mirror_changed": "calendar"})
+    app.state.hub = hub
+    templates.env.globals["realtime"] = True
+    streaming = Depends(auth.require(touch=False))
+
+    @app.get("/events", include_in_schema=False)
+    async def events(user: CurrentUser = streaming) -> Response:
+        return hub.response(user.id)
 
     clients = ClientService(cipher)
     app.state.clients = clients

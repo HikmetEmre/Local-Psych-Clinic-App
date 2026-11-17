@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Bildirimler{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Bildirimler</h1>
+  <form method="post" action="/bildirimler/tumu-okundu">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn btn--secondary btn--small" type="submit">Tümünü okundu say</button>
+  </form>
+</div>
+{% if saved %}<div class="alert" role="status">Ayarlar kaydedildi.</div>{% endif %}
+
+<section class="card">
+  {% if items %}
+  <ul class="inbox">
+    {% for n in items %}
+    <li class="inbox__item{% if not n.read %} is-unread{% endif %}">
+      <form method="post" action="/bildirimler/{{ n.id }}/ac">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="inbox__open">
+          <span class="inbox__title">{{ n.rendered.title }}</span>
+          <span class="inbox__body">{{ n.rendered.body }}</span>
+          <span class="inbox__time">{{ n.created_at|datetime_tr }}</span>
+        </button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">Henüz bildirim yok.</p>
+  {% endif %}
+</section>
+
+<section class="card stack">
+  <h2>Bu cihaz</h2>
+  {% if vapid_public_key %}
+  <p class="muted">Randevu eklendiğinde, değiştiğinde veya iptal edildiğinde telefonunuza bildirim gelir.
+    Android'de Chrome ile açıp menüden <strong>Ana ekrana ekle</strong>'yi seçmeniz önerilir.</p>
+  <div class="row">
+    <button class="btn" type="button" id="push-enable" data-key="{{ vapid_public_key }}">Bildirimleri aç</button>
+    <button class="btn btn--secondary" type="button" id="push-disable">Bu cihazda kapat</button>
+  </div>
+  <p class="muted small" id="push-status" role="status">Kayıtlı cihaz sayısı: {{ devices }}</p>
+  {% else %}
+  <p class="muted">Anlık bildirimler bu kurulumda yapılandırılmadı. Bildirimler bu sayfada görünmeye devam eder.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Ayarlar</h2>
+  <form method="post" action="/bildirimler/ayarlar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <div class="field">
+        <label for="quiet_start">Sessiz saatler başlangıcı</label>
+        <input id="quiet_start" name="quiet_start" type="time" value="{{ settings.quiet_start.strftime('%H:%M') }}">
+      </div>
+      <div class="field">
+        <label for="quiet_end">Sessiz saatler bitişi</label>
+        <input id="quiet_end" name="quiet_end" type="time" value="{{ settings.quiet_end.strftime('%H:%M') }}">
+      </div>
+    </div>
+    <p class="muted small">Sessiz saatlerde bildirimler gelen kutusuna düşer, telefon bildirimi sessiz saatler bitince gönderilir.</p>
+    <div class="checks">
+      <label><input type="checkbox" name="push_enabled" value="1"{% if settings.push_enabled %} checked{% endif %}> Telefon bildirimleri</label>
+      <label><input type="checkbox" name="reminder_24h" value="1"{% if settings.reminder_24h %} checked{% endif %}> Randevudan 24 saat önce hatırlat</label>
+      <label><input type="checkbox" name="reminder_1h" value="1"{% if settings.reminder_1h %} checked{% endif %}> Randevudan 1 saat önce hatırlat</label>
+    </div>
+    <div class="form-actions"><button class="btn" type="submit">Kaydet</button></div>
+  </form>
+</section>
+{% endblock %}

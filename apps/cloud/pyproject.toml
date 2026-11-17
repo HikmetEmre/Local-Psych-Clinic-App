@@ -2,7 +2,7 @@
 name = "klinik-cloud"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["klinik-shared"]
+dependencies = ["klinik-shared", "pywebpush>=2.0"]
 
 [tool.uv.sources]
 klinik-shared = { workspace = true }

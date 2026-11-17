@@ -70,6 +70,13 @@ TEXTUAL_ALLOWLIST = {
     ("sync_inbox", "kind"): "enum",
     ("sync_inbox", "result"): "enum",
     ("sync_inbox", "reason_code"): "code, CHECK",
+    ("notifications", "event_type"): "enum",
+    ("notifications", "payload"): "jsonb of NotificationPayload (extra=forbid): ids, code, times",
+    ("notifications", "push_state"): "enum",
+    ("notifications", "dedupe_key"): "reminder key, length-limited",
+    ("push_subscriptions", "endpoint"): "browser push-service URL, CHECK https + length",
+    ("push_subscriptions", "p256dh"): "browser public key",
+    ("push_subscriptions", "auth"): "browser auth secret",
 }
 
 TEXTUAL_TYPES = ("text", "character varying", "character", "json", "jsonb", "bytea", "USER-DEFINED")
@@ -147,7 +154,7 @@ def test_every_table_has_row_level_security(cloud_db: CloudDb) -> None:
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = 'app' AND c.relkind = 'r' AND c.relname <> 'alembic_version'",
     )
-    assert len(rows) == 13
+    assert len(rows) == 15
     assert all(r["relrowsecurity"] and r["relforcerowsecurity"] for r in rows)
 
 

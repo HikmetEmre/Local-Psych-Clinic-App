@@ -55,6 +55,16 @@ New keys for a real installation: `python -m klinik_local.manage generate-keys` 
 Rooms are added in Klinik Web under **Ayarlar → Odalar**. Client codes reach the cloud from the
 office through the sync worker (milestone 5).
 
+## Browser tests
+
+`tests/e2e` drives real browsers (Playwright) against the running dev stack. They are skipped
+unless you pass a JSON file with the dev users' passwords and TOTP secrets:
+
+```sh
+uv run playwright install chromium
+uv run pytest tests/e2e --e2e-users=path/to/users.json
+```
+
 ## Migrations
 
 Two independent Alembic chains:

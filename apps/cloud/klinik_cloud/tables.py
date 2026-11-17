@@ -126,3 +126,35 @@ sync_inbox = Table(
     Column("result", Text, nullable=False),
     Column("reason_code", Text),
 )
+
+notifications = Table(
+    "notifications",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=_gen_uuid),
+    Column("recipient_id", _uuid, ForeignKey("app.users.id"), nullable=False),
+    Column("event_type", Text, nullable=False),
+    Column("appointment_id", _uuid, ForeignKey("app.appointments.id")),
+    Column("payload", JSONB, nullable=False),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("read_at", _tz),
+    Column("push_state", Text, nullable=False, server_default=text("'pending'")),
+    Column("push_after", _tz, nullable=False, server_default=text("now()")),
+    Column("next_attempt_at", _tz),
+    Column("pushed_at", _tz),
+    Column("push_attempts", Integer, nullable=False, server_default=text("0")),
+    Column("expires_at", _tz),
+    Column("dedupe_key", Text, unique=True),
+)
+
+push_subscriptions = Table(
+    "push_subscriptions",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=_gen_uuid),
+    Column("user_id", _uuid, ForeignKey("app.users.id"), nullable=False),
+    Column("endpoint", Text, nullable=False, unique=True),
+    Column("p256dh", Text, nullable=False),
+    Column("auth", Text, nullable=False),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("last_success_at", _tz),
+    Column("failure_count", Integer, nullable=False, server_default=text("0")),
+)

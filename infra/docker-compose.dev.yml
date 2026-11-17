@@ -54,6 +54,9 @@ services:
       CLOUD_DATABASE_URL: postgresql+asyncpg://cloud_app:${CLOUD_APP_DB_PASSWORD}@cloud-db:5432/klinik_cloud
       CLOUD_AUTH_FERNET_KEY: ${CLOUD_AUTH_FERNET_KEY:?}
       CLOUD_COOKIE_SECURE: "false"
+      CLOUD_VAPID_PRIVATE_KEY: ${CLOUD_VAPID_PRIVATE_KEY:-}
+      CLOUD_VAPID_PUBLIC_KEY: ${CLOUD_VAPID_PUBLIC_KEY:-}
+      CLOUD_VAPID_SUBJECT: ${CLOUD_VAPID_SUBJECT:-}
     ports:
       - "127.0.0.1:8001:8000"
     depends_on:

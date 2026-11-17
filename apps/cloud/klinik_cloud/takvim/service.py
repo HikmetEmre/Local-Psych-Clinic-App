@@ -20,10 +20,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_cloud import tables as t
+from klinik_cloud.bildirimler.service import notify_appointment, notify_conflict
 from klinik_shared.audit import write_audit
 from klinik_shared.authkit.service import CurrentUser
 from klinik_shared.client_code import is_valid_client_code
-from klinik_shared.enums import AppointmentStatus, ConflictKind
+from klinik_shared.enums import AppointmentStatus, ConflictKind, NotificationEvent
 from klinik_shared.permissions import Permission
 from klinik_shared.timeutil import istanbul_day_bounds, now_utc
 
@@ -326,7 +327,17 @@ class AppointmentService:
             entity_id=new_id,
             detail={"client_code": client_code},
         )
-        return await self.get(conn, new_id)
+        created = await self.get(conn, new_id)
+        await notify_appointment(
+            conn,
+            NotificationEvent.APPOINTMENT_CREATED,
+            appointment_id=created.id,
+            client_code=created.client_code,
+            starts_at=created.starts_at,
+            therapist_id=created.therapist_id,
+            actor_id=actor.id,
+        )
+        return created
 
     async def update(
         self,
@@ -383,7 +394,22 @@ class AppointmentService:
             entity_id=appointment_id,
             detail={"changed": sorted(wanted), "merged": merged},
         )
-        return await self.get(conn, appointment_id), merged
+        fresh = await self.get(conn, appointment_id)
+        await notify_appointment(
+            conn,
+            NotificationEvent.APPOINTMENT_CANCELLED
+            if cancelled
+            else NotificationEvent.APPOINTMENT_UPDATED,
+            appointment_id=fresh.id,
+            client_code=fresh.client_code,
+            starts_at=fresh.starts_at,
+            therapist_id=fresh.therapist_id,
+            actor_id=actor.id,
+            changed_fields=sorted(wanted),
+            # Moving an appointment to another therapist tells the previous one too.
+            extra_recipients=[current.therapist_id],
+        )
+        return fresh, merged
 
     async def cancel(
         self, conn: AsyncConnection, actor: CurrentUser, appointment_id: UUID, expected_version: int
@@ -429,5 +455,14 @@ class AppointmentService:
             entity_type="appointment",
             entity_id=current.id,
             detail={"fields": sorted(wanted)},
+        )
+        await notify_conflict(
+            conn,
+            conflict_id=conflict_id,
+            author_id=actor.id,
+            actor_id=actor.id,
+            appointment_id=current.id,
+            client_code=current.client_code,
+            starts_at=current.starts_at,
         )
         return conflict_id

@@ -8,6 +8,8 @@
 
 {% if sync_banner %}<div class="alert alert--warn" role="status">{{ sync_banner }}</div>{% endif %}
 
+{# Re-fetched when the schedule changes anywhere (Server-Sent Events). #}
+<div id="calendar" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar" hx-select="#calendar" hx-swap="outerHTML">
 <div class="cal-toolbar">
   <div class="row">
     <a class="btn btn--secondary btn--small" href="{{ cal_url(gun=prev_day) }}" aria-label="Önceki">‹</a>
@@ -68,4 +70,5 @@
 </div>
 <p class="muted small">Takvim bulut takviminin kopyasıdır ve buradan değiştirilemez.
   Randevu eklemek, taşımak veya iptal etmek için Klinik Web'i kullanın.</p>
+</div>
 {% endblock %}

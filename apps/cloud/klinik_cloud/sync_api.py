@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from klinik_cloud import tables as t
+from klinik_cloud.bildirimler.service import notify_conflict
 from klinik_shared.audit import write_audit
 from klinik_shared.enums import (
     AppointmentStatus,
@@ -179,15 +180,29 @@ async def _reject(
     current: AppointmentData | None = None,
 ) -> ItemResult:
     """A refused item is never dropped: it becomes a conflict for a person to decide."""
-    await conn.execute(
-        insert(t.conflicts).values(
-            kind=kind.value,
-            appointment_id=appointment_id,
-            author_id=author_id if await _user_exists(conn, author_id) else None,
-            proposed=proposed or {},
-            reason_code=reason.value,
-            sync_item_id=item.item_id,
+    author = author_id if await _user_exists(conn, author_id) else None
+    conflict_id = (
+        await conn.execute(
+            insert(t.conflicts)
+            .values(
+                kind=kind.value,
+                appointment_id=appointment_id,
+                author_id=author,
+                proposed=proposed or {},
+                reason_code=reason.value,
+                sync_item_id=item.item_id,
+            )
+            .returning(t.conflicts.c.id)
         )
+    ).scalar_one()
+    await notify_conflict(
+        conn,
+        conflict_id=conflict_id,
+        author_id=author,
+        actor_id=None,
+        appointment_id=appointment_id,
+        client_code=current.client_code if current else None,
+        starts_at=current.starts_at if current else None,
     )
     await write_audit(
         conn,

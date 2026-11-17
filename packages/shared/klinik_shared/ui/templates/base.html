@@ -12,9 +12,15 @@
   {# htmx must not inject its own <style>: the CSP allows stylesheets from this origin only. #}
   <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false}'>
   <script src="/static/ui/js/htmx.min.js" defer></script>
+  {% if user and realtime %}<script src="/static/ui/js/htmx-sse.js" defer></script>{% endif %}
+  {% if pwa %}
+  <link rel="manifest" href="/manifest.webmanifest">
+  <script src="/static/ui/js/push.js" defer></script>
+  {% endif %}
+  {% if user %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   {% block head %}{% endblock %}
 </head>
-<body{% if user %} hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% endif %}>
+<body{% if user %} hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% if realtime and not user.must_change_password %} hx-ext="sse" sse-connect="/events"{% endif %}{% endif %}>
   <header class="site-header">
     <div class="site-header__inner">
       <a class="brand" href="/">
@@ -26,6 +32,11 @@
       <span class="tier-badge">{{ tier.badge }}</span>
       {% if user %}
       <div class="user-menu">
+        {# Nothing polls in the background until the temporary password is replaced:
+           those requests would be redirected to this page and reload it in a loop. #}
+        {% if has_inbox and not user.must_change_password %}
+        <a class="bell" href="/bildirimler" hx-get="/bildirimler/sayac" hx-trigger="load, sse:notification" hx-swap="innerHTML"><span aria-hidden="true">🔔</span><span class="sr-only">Bildirimler</span></a>
+        {% endif %}
         <a class="user-menu__name" href="/hesap/sifre" title="Şifre değiştir">{{ user.display_name }}</a>
         <form method="post" action="/logout">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
