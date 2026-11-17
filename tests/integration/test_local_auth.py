@@ -316,3 +316,18 @@ def test_logged_in_user_is_sent_away_from_the_login_page(
         response = kasa.get("/login")
         assert response.status_code == 303 and response.headers["location"] == "/"
         assert csrf_in(kasa.get("/").text) == kasa.csrf
+
+
+def test_one_address_trying_many_accounts_is_blocked(
+    local_db: LocalDb, onboarded: dict[str, str]
+) -> None:
+    with Kasa(local_db) as kasa:
+        for n in range(20):
+            assert kasa.submit_password(f"guess.{n}", "wrong-password-1").status_code == 401
+        # Correct credentials from the same address are refused for now...
+        blocked = kasa.submit_password("terapist.a", PASSWORD)
+        assert blocked.status_code == 401 and "Çok fazla hatalı deneme" in blocked.text
+    # ...and work again once the window has passed.
+    execute(local_db, "UPDATE login_attempts SET ts = $1", ago(minutes=16))
+    with Kasa(local_db) as kasa:
+        assert kasa.submit_password("terapist.a", PASSWORD).status_code == 303

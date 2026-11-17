@@ -1,0 +1,52 @@
+# Klinik Web on Google Cloud Run. Deploy with:
+#   gcloud run services replace infra/cloudrun/service.yaml --region <REGION>
+# See docs/runbooks/cloud.md. <REGION> is a go-live decision (KVKK), not a default.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: klinik-web
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Push delivery, reminders and the live-update listener run inside the app:
+        # keep one instance warm and give it CPU outside requests.
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      # Live calendars keep a Server-Sent Events stream open; browsers reconnect after this.
+      timeoutSeconds: 3600
+      containers:
+        - image: <REGION>-docker.pkg.dev/<PROJECT>/klinik/klinik-cloud:<TAG>
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: CLOUD_COOKIE_SECURE
+              value: "true"
+            # Secrets come from Secret Manager, never from this file.
+            - name: CLOUD_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: klinik-cloud-database-url, key: latest } }
+            - name: CLOUD_AUTH_FERNET_KEY
+              valueFrom: { secretKeyRef: { name: klinik-cloud-auth-key, key: latest } }
+            - name: CLOUD_VAPID_PRIVATE_KEY
+              valueFrom: { secretKeyRef: { name: klinik-cloud-vapid-private, key: latest } }
+            - name: CLOUD_VAPID_PUBLIC_KEY
+              valueFrom: { secretKeyRef: { name: klinik-cloud-vapid-public, key: latest } }
+            - name: CLOUD_VAPID_SUBJECT
+              valueFrom: { secretKeyRef: { name: klinik-cloud-vapid-subject, key: latest } }
+          startupProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            periodSeconds: 30

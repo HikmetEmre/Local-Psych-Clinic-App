@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Yedekleme{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Yedekleme</h1></div>
+{% include "ayarlar/_subnav.html" %}
+
+{% if warnings %}
+{% for w in warnings %}<div class="alert alert--warn" role="alert">{{ w }}</div>{% endfor %}
+{% else %}
+<div class="alert" role="status">Yedekler güncel ve son geri yükleme testi başarılı.</div>
+{% endif %}
+
+<section class="card stack">
+  <h2>Durum</h2>
+  <dl class="facts">
+    {% for key, label in [
+      ('last_daily_ok', 'Son gece yedeği'),
+      ('last_hourly_ok', 'Son saatlik yedek'),
+      ('last_file', 'Son dosya'),
+      ('last_upload_ok', 'Son Google Drive yüklemesi'),
+      ('last_cloud_ok', 'Son bulut veritabanı kopyası'),
+      ('last_restore_test', 'Son geri yükleme testi'),
+      ('last_error', 'Son hata'),
+    ] %}
+    <div><dt>{{ label }}</dt><dd>{% if key in status %}{{ status[key][0] }}{% else %}<span class="muted">—</span>{% endif %}</dd></div>
+    {% endfor %}
+  </dl>
+</section>
+
+<section class="card stack">
+  <h2>Nasıl çalışır</h2>
+  <ul class="steps">
+    <li>Her gece 02:30'da ve mesai saatlerinde saat başı veritabanı yedeklenir.</li>
+    <li>Yedekler <strong>şifreli</strong> olarak bu bilgisayarda ve Google Drive'da tutulur (30 gece, 12 ay, 48 saat).</li>
+    <li>Yedekleri açan anahtar bu bilgisayarda <strong>değildir</strong>; kasada saklanan USB bellektedir.</li>
+    <li>Ayda bir geri yükleme testi yapılır: <code>bash infra/backup/restore_test.sh &lt;anahtar dosyası&gt;</code></li>
+  </ul>
+</section>
+{% endblock %}

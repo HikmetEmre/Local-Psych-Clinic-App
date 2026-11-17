@@ -10,6 +10,15 @@ Management app for a two-therapist psychology clinic, split into two tiers:
 
 Specs and the plan are in [`docs/`](docs/): `PLAN_MODE_BRIEF.md`, `TERAPILER_TAB.md`, `IMPLEMENTATION_PLAN.md`.
 
+## Running it for real
+
+| Topic | Runbook |
+|---|---|
+| Office laptop (Windows 11, WSL2, Tailscale) | [docs/runbooks/office-laptop-windows.md](docs/runbooks/office-laptop-windows.md) |
+| Cloud (Supabase + Cloud Run), Android phones | [docs/runbooks/cloud.md](docs/runbooks/cloud.md) |
+| Backups, key custody, monthly restore test | [docs/runbooks/backups.md](docs/runbooks/backups.md) |
+| Go-live checklist and Definition of Done | [docs/runbooks/go-live.md](docs/runbooks/go-live.md) |
+
 ## Development
 
 Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Docker Desktop (running).

@@ -80,6 +80,8 @@ class AuthPolicy:
     max_lifetime: timedelta = timedelta(hours=12)
     max_failures: int = 5
     lock_window: timedelta = timedelta(minutes=15)
+    # Many usernames tried from one address: block the address, not only the account.
+    max_failures_per_ip: int = 20
 
 
 class AuthStore:
@@ -130,10 +132,27 @@ class AuthStore:
 
     # ------------------------------------------------------------ step 1: password
 
+    async def is_ip_blocked(self, conn: AsyncConnection, ip: str | None) -> bool:
+        if not ip:
+            return False
+        la = self.t.login_attempts
+        failures = (
+            await conn.execute(
+                select(func.count())
+                .select_from(la)
+                .where(
+                    la.c.ip == ip,
+                    la.c.success.is_(False),
+                    la.c.ts > self.clock() - self.policy.lock_window,
+                )
+            )
+        ).scalar_one()
+        return bool(failures >= self.policy.max_failures_per_ip)
+
     async def password_login(
         self, conn: AsyncConnection, username: str, password: str, ip: str | None
     ) -> PasswordLoginResult:
-        if await self.is_locked(conn, username):
+        if await self.is_locked(conn, username) or await self.is_ip_blocked(conn, ip):
             await write_audit(
                 conn,
                 self.audit_table,

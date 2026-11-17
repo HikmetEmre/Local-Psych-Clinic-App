@@ -5,4 +5,7 @@
   {% if "admin.catalog" in user.permissions %}
   <a class="segment" href="/ayarlar/katalog"{% if request.url.path.startswith('/ayarlar/katalog') %} aria-current="page"{% endif %}>Terapi kataloğu</a>
   {% endif %}
+  {% if "admin.backup" in user.permissions %}
+  <a class="segment" href="/ayarlar/yedek"{% if request.url.path.startswith('/ayarlar/yedek') %} aria-current="page"{% endif %}>Yedekleme</a>
+  {% endif %}
 </nav>

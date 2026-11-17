@@ -356,3 +356,37 @@ None of these stop M1–M2. The defaults below are what gets built unless you sa
 ## First step after approval
 
 Start M1. Its first commit moves the two specs into `/docs` and saves this plan beside them as `docs/IMPLEMENTATION_PLAN.md`.
+
+
+---
+
+## Status (2026-11-17)
+
+M1–M8 are built and committed, one commit (or a few) per milestone. Test suite: unit,
+integration on real PostgreSQL 16, two-database sync scenarios, real backup/restore, and
+an opt-in browser test against the dev stack.
+
+### Where the build differs from the plan
+
+| Plan | Built | Why |
+|---|---|---|
+| Sync `GET /snapshot` + nightly repair | Not built. The pull is cursor-only; client codes are reconciled at every worker start | The commit-ordered `change_seq` makes the cursor complete; every row change carries a new number. Add the snapshot if a mirror is ever seen to drift |
+| Kasa → Klinik Web deep links from client pages | One "Randevu oluştur (Klinik Web)" button on the Kasa calendar; Klinik Web's booking form accepts `?kod=`, `?terapist=`, `?baslangic=` | Small follow-up: add the prefilled link on the client page |
+| Column visibility toggle per user (TERAPILER_TAB §6.4) | Not built | Needs a small client-side script; low value for two users |
+| iPhone onboarding | Not built | Decision Q4: Android only |
+| R5 (disk encryption) | BitLocker, per decision Q3 (Windows) | — |
+| Office laptop autostart | WSL2 + Docker Engine + Task Scheduler (recommended), Docker Desktop + autologon (fallback) | Docker Desktop alone cannot start before a login |
+
+### Found and fixed by testing against real systems
+
+- Backup pruning of an empty folder made every backup report failure (`pipefail`).
+- Restoring into a new server failed: server-wide roles are not in a dump (`infra/backup/roles.sql`).
+- Forced password page reloaded itself in a loop (background bell request redirected to it).
+- Pages scrolled sideways on phones (absolutely positioned hidden inputs escaped their box).
+- The web app had write access to the whole outbox; narrowed to one function.
+
+### Not yet done
+
+- CI has never run: the repository has no remote. The workflow is in `.github/workflows/ci.yml`.
+- Real deployment: Supabase/Cloud Run project, region decision (KVKK), office laptop setup,
+  real push to a phone. All described in `docs/runbooks/`.

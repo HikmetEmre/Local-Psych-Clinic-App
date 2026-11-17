@@ -3,6 +3,7 @@
     python -m klinik_local.manage set-role-passwords
     python -m klinik_local.manage bootstrap-users users.toml     (or "-" for stdin)
     python -m klinik_local.manage generate-keys
+    python -m klinik_local.manage verify-restore      (RESTORE_DSN = a restored copy)
 
 The first two connect with LOCAL_MIGRATION_DATABASE_URL (the owner role).
 """
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import generate_key, parse_keys
+from klinik_local.restore_check import verify_restore
 from klinik_shared.authkit.admin import bootstrap_users, parse_users_file, set_role_passwords
 from klinik_shared.authkit.service import AuthStore
 
@@ -45,6 +47,15 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"LOCAL_AUTH_FERNET_KEY={generate_key()}")
         print("# Keep an OFFLINE copy of LOCAL_FERNET_KEYS. Without it, notes cannot be recovered.")
         return 0
+
+    if args.command == "verify-restore":
+        dsn = os.environ.get("RESTORE_DSN")
+        if not dsn:
+            raise SystemExit("RESTORE_DSN is not set")
+        report = await verify_restore(dsn, os.environ.get("LOCAL_FERNET_KEYS"))
+        for line in report.lines():
+            print(line)
+        return 0 if report.ok else 1
 
     engine = _owner_engine()
     try:
@@ -93,6 +104,7 @@ def main() -> None:
     bootstrap = sub.add_parser("bootstrap-users", help="create users from a TOML file")
     bootstrap.add_argument("file", help='path to the TOML file, or "-" for stdin')
     sub.add_parser("generate-keys", help="print new Fernet keys for the env file")
+    sub.add_parser("verify-restore", help="check a restored backup (RESTORE_DSN)")
     sys.exit(asyncio.run(_main(parser.parse_args())))
 
 

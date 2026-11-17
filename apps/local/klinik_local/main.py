@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from klinik_local import tables as t
 from klinik_local.ayarlar.katalog import build_router as build_catalog_router
+from klinik_local.ayarlar.yedek import build_router as build_backup_router
 from klinik_local.config import Settings, get_settings
 from klinik_local.crypto.fernet import FieldCipher, parse_keys
 from klinik_local.danisanlar.routes import build_router as build_clients_router
@@ -120,4 +121,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_schedule_router(auth, clients, templates, settings.web_base_url))
     app.include_router(build_users_router(auth, templates))
     app.include_router(build_catalog_router(auth, templates))
+    app.include_router(build_backup_router(auth, templates))
     return app
