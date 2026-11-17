@@ -112,6 +112,8 @@
 {% if appointment and show_payments %}
 <section class="card stack" id="odemeler">
   <h2>Ödemeler</h2>
+  {% if not full_view %}<p class="muted small">Bu randevu {{ appointment.therapist_name }} adına. Ödeme alabilirsiniz;
+    burada yalnızca sizin aldığınız ödemeler görünür. Gelir, randevunun terapistine yazılır.</p>{% endif %}
   {% if payment_notice %}<div class="alert" role="status">{{ payment_notice }}</div>{% endif %}
   {% if payment_error %}<div class="alert alert--error" role="alert">{{ payment_error }}</div>{% endif %}
   {% if payments %}
@@ -148,7 +150,7 @@
     </table>
   </div>
   {% else %}
-  <p class="muted">Bu randevu için ödeme kaydı yok.</p>
+  <p class="muted">{% if full_view %}Bu randevu için ödeme kaydı yok.{% else %}Bu randevu için sizin aldığınız bir ödeme yok.{% endif %}</p>
   {% endif %}
   {% if can_pay and appointment.status != 'cancelled' %}
   <form class="inline-form" method="post" action="/odemeler" autocomplete="off">

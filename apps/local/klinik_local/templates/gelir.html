@@ -141,6 +141,31 @@
   {% if can_pay %}<p class="muted small">Ödeme eklemek için takvimden ilgili randevuyu açın.</p>{% endif %}
 </section>
 
+{% if collected %}
+<section class="card stack" id="tahsilat">
+  <h2>Diğer terapistler adına aldığınız ödemeler</h2>
+  <p class="muted small">Bu tutarlar sizin geliriniz değildir; randevunun terapistine yazılır. Kasa teslimi için listelenir.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tarih</th><th>Danışan</th><th>Terapist</th><th>Yöntem</th><th class="num">Tutar</th><th></th></tr></thead>
+      <tbody>
+        {% for p in collected %}
+        <tr{% if p.voided %} class="is-voided"{% endif %}>
+          <td>{{ p.paid_at|datetime_tr }}</td>
+          <td><a href="/randevular/{{ p.appointment_id }}#odemeler">{{ p.client_name }}</a></td>
+          <td>{{ p.therapist_name }}</td>
+          <td>{{ method_labels.get(p.method, p.method) }}</td>
+          <td class="num">{{ money(p.amount) }}</td>
+          <td>{% if p.voided %}<span class="badge badge--cancelled">İptal</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><th colspan="4">Toplam (teslim edilecek)</th><th class="num">{{ money(collected_total) }}</th><th></th></tr></tfoot>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 {% if spent %}
 <section class="card stack" id="giderler">
   <h2>Giderler</h2>

@@ -2,10 +2,11 @@
 ; which passes /DStage=<staged files> /DAppVersion=<x.y.z> /DOutDir=<dist>.
 ;
 ; Two kinds of installation:
-;   - office computer: the main installation (database, backups, daily snapshot, served
-;     to the office network over HTTPS for the owner's laptop to sync with);
-;   - owner's laptop: a copy that works offline and syncs with the office (needs the
-;     pairing file made at the office: Ayarlar > Dizustu kopya).
+;   - main computer (the owner's laptop): the database, backups and the 17:00 snapshot;
+;     served over HTTPS to the clinic network for the connected computers to sync with;
+;   - connected computer (e.g. the employee therapist's laptop): a copy that belongs to
+;     one user, works on its own and syncs with the main computer on the same network
+;     (needs the pairing file made on the main computer: Ayarlar > Bagli bilgisayarlar).
 
 #ifndef AppVersion
   #define AppVersion "0.2.0"
@@ -97,11 +98,12 @@ begin
   ModePage := CreateInputOptionPage(wpSelectDir,
     'Kurulum türü',
     'Bu bilgisayar hangisi?',
-    'Program ofis bilgisayarında çalışır. Klinik sahibinin dizüstü bilgisayarına, ofis ' +
-    'ağından uzaktayken de çalışan ve ofise bağlanınca eşitlenen bir kopya kurulabilir.',
+    'Tüm kayıtlar ve yedekler ana bilgisayarda tutulur (klinik sahibinin bilgisayarı). ' +
+    'Diğer terapistin bilgisayarına, kendi başına da çalışan ve iki bilgisayar aynı ağdayken ' +
+    'ana bilgisayarla eşitlenen bağlı bir kopya kurulur. Önce ana bilgisayarı kurun.',
     True, False);
-  ModePage.Add('Ofis bilgisayarı (ana kurulum)');
-  ModePage.Add('Klinik sahibinin dizüstü bilgisayarı (ofisle eşitlenen kopya)');
+  ModePage.Add('Ana bilgisayar (klinik sahibi; ilk kurulum)');
+  ModePage.Add('Bağlı bilgisayar (terapist; ana bilgisayarla eşitlenir)');
   ModePage.Values[0] := True;
 
   AdminPage := CreateInputQueryPage(ModePage.ID,
@@ -124,16 +126,17 @@ begin
 
   PairingFilePage := CreateInputFilePage(DrivePage.ID,
     'Eşleştirme dosyası',
-    'Ofis bilgisayarında oluşturulan dosya',
-    'Ofis bilgisayarındaki programda Ayarlar > Dizüstü kopya sayfasından eşleştirme dosyasını ' +
-    'indirin ve bu bilgisayara (ör. USB bellekle) getirin.');
+    'Ana bilgisayarda oluşturulan dosya',
+    'Ana bilgisayardaki programda Ayarlar > Bağlı bilgisayarlar sayfasından, bu bilgisayarı ' +
+    'kullanacak kişiyi seçerek eşleştirme dosyasını indirin ve buraya (ör. USB bellekle) getirin.');
   PairingFilePage.Add('Eşleştirme dosyası:', 'Eşleştirme dosyası|*.json|Tüm dosyalar|*.*', '.json');
 
   PairingPassPage := CreateInputQueryPage(PairingFilePage.ID,
     'Eşleştirme parolası',
     'Dosya oluşturulurken seçilen parola',
-    'Kurulum için dizüstü bilgisayar ofis ağına bağlı olmalıdır: kullanıcılar ve kayıtlar ' +
-    'ilk eşitlemeyle ofisten gelir.');
+    'Kurulum sırasında bu bilgisayar ana bilgisayarla aynı ağda olmalı ve ana bilgisayar açık ' +
+    'olmalıdır: kayıtlar ilk eşitlemeyle gelir. Bu bilgisayarın kullanıcısı ilk girişini (şifre ' +
+    've iki adımlı doğrulama) önce ana bilgisayarda yapmış olmalıdır.');
   PairingPassPage.Add('Parola:', True);
 end;
 

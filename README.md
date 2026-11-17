@@ -1,15 +1,16 @@
 # Nil Psikoloji: Klinik App
 
-Management app for a small psychology clinic. **One program on the office computer** with two
-roles, and an **offline-capable copy on the owner's laptop** that syncs with the office.
+Management app for a small psychology clinic. **One program, two roles.** The owner's laptop
+is the **main computer**; the employee therapist's laptop runs a **connected copy** bound to
+her user, which works on its own and syncs both ways when both are on the clinic network.
 
 | Role | Sees and does |
 |---|---|
 | **Yönetici** (owner) | Everything: every therapist's sessions and notes, all income, reports, users and settings |
-| **Terapist** | The whole calendar (and booking), their own clients' sessions and notes, their own income |
+| **Terapist** | The whole calendar (and booking), their own sessions and notes, their own income; takes payments (cash, card, transfer) for any appointment |
 
 Tabs: **Ana sayfa** (the day's appointments and sessions, month calendar with quick booking),
-**Takvim**, **Terapiler**, **Danışanlar**, **Gelir**, **Raporlar** (detailed PDF reports),
+**Takvim**, **Terapiler**, **Danışanlar** (with each client's **Klinik notlar** log), **Gelir-Gider**, **Raporlar** (detailed PDF reports),
 **Günlük özet** (encrypted daily snapshot in Google Drive), **Ayarlar**.
 
 Code: `apps/local` (the app, `klinik_local`), `packages/shared` (auth, UI, calendar),
@@ -23,7 +24,7 @@ Specs: [`docs/`](docs/) (`PLAN_MODE_BRIEF.md`, `TERAPILER_TAB.md`, `IMPLEMENTATI
 
 | Topic | Runbook |
 |---|---|
-| Installing on the office computer and the owner's laptop | [docs/runbooks/office-installer.md](docs/runbooks/office-installer.md) |
+| Installing the main computer and connected computers | [docs/runbooks/office-installer.md](docs/runbooks/office-installer.md) |
 | Windows settings for the office computer | [docs/runbooks/office-laptop-windows.md](docs/runbooks/office-laptop-windows.md) §1 |
 | Backups, key custody, monthly restore test | [docs/runbooks/backups.md](docs/runbooks/backups.md) |
 | Go-live checklist | [docs/runbooks/go-live.md](docs/runbooks/go-live.md) |

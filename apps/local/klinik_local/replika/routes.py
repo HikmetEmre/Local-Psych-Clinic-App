@@ -117,9 +117,15 @@ def build_office_router(
                 await conn.execute(
                     text(
                         "SELECT r.id, r.label, r.created_at, r.last_seen_at, r.revoked_at, "
-                        "u.display_name FROM replicas r LEFT JOIN users u ON u.id = r.created_by "
-                        "ORDER BY r.created_at DESC"
+                        "u.display_name, o.display_name AS owner FROM replicas r "
+                        "LEFT JOIN users u ON u.id = r.created_by "
+                        "LEFT JOIN users o ON o.id = r.user_id ORDER BY r.created_at DESC"
                     )
+                )
+            ).all()
+            people = (
+                await conn.execute(
+                    text("SELECT id, display_name FROM users WHERE is_active ORDER BY display_name")
                 )
             ).all()
         return render(
@@ -127,6 +133,7 @@ def build_office_router(
             "ayarlar/dizustu.html",
             {
                 "replicas": replicas,
+                "people": people,
                 "office_url": office_url(),
                 "has_cert": bool(settings.tls_cert and Path(settings.tls_cert).exists()),
                 "min_passphrase": MIN_PASSPHRASE,
@@ -145,10 +152,22 @@ def build_office_router(
         form = await request.form()
         label = " ".join(str(form.get("label") or "").split())[:60]
         passphrase = str(form.get("passphrase") or "")
-        if not label:
+        try:
+            owner_id = UUID(str(form.get("user_id") or ""))
+        except ValueError:
             return await pairing_page(
-                request, user, error="Bir ad yazın (ör. Nil'in dizüstü).", status=422
+                request, user, error="Bilgisayarın kime ait olduğunu seçin.", status=422
             )
+        async with auth.tx(user) as conn:
+            owner = (
+                await conn.execute(
+                    text("SELECT display_name FROM users WHERE id = :id AND is_active"),
+                    {"id": owner_id},
+                )
+            ).scalar_one_or_none()
+        if owner is None:
+            return await pairing_page(request, user, error="Kullanıcı bulunamadı.", status=422)
+        label = label or f"{owner} bilgisayarı"
         if passphrase != str(form.get("passphrase2") or ""):
             return await pairing_page(request, user, error="Parolalar aynı değil.", status=422)
         cert_pem = None
@@ -162,6 +181,7 @@ def build_office_router(
             "fernet_keys": settings.fernet_keys,
             "auth_fernet_key": settings.auth_fernet_key,
             "label": label,
+            "user": owner,
             "created": now_utc().isoformat(),
         }
         try:
@@ -172,10 +192,10 @@ def build_office_router(
             replica_id = (
                 await conn.execute(
                     text(
-                        "INSERT INTO replicas (label, token_hash, created_by) "
-                        "VALUES (:l, :h, :u) RETURNING id"
+                        "INSERT INTO replicas (label, token_hash, created_by, user_id) "
+                        "VALUES (:l, :h, :u, :o) RETURNING id"
                     ),
-                    {"l": label, "h": digest, "u": user.id},
+                    {"l": label, "h": digest, "u": user.id, "o": owner_id},
                 )
             ).scalar_one()
             await write_audit(
@@ -365,7 +385,7 @@ def build_office_router(
         except IntegrityError:
             if table == "appointments":
                 return "Randevu hâlâ başka bir randevuyla çakışıyor. Takvimden yeni bir saat verin."
-            return "Dizüstündeki hali uygulanamadı (kayıt kurallarına uymuyor)."
+            return "Bağlı bilgisayardaki hali uygulanamadı (kayıt kurallarına uymuyor)."
         return None
 
     return router

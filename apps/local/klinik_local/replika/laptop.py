@@ -115,9 +115,11 @@ class ReplicaSync:
         except httpx.TransportError as exc:
             raise OfficeUnreachable(str(exc)) from exc
         if response.status_code == 401:
-            raise OfficeRefused("Ofis bu dizüstünü tanımıyor (eşleştirme iptal edilmiş olabilir).")
+            raise OfficeRefused(
+                "Ana bilgisayar bu kopyayı tanımıyor (eşleştirme iptal edilmiş olabilir)."
+            )
         if response.status_code != 200:
-            raise OfficeRefused(f"Ofis hata verdi ({response.status_code}).")
+            raise OfficeRefused(f"Ana bilgisayar hata verdi ({response.status_code}).")
         return response.json()
 
     # ------------------------------------------------------------ push
@@ -325,7 +327,8 @@ class ReplicaSync:
                 self.status.last_error = None
             except OfficeUnreachable:
                 self.status.last_error = (
-                    "Ofis bilgisayarına ulaşılamıyor (ofis ağında değilsiniz ya da ofis kapalı)."
+                    "Ana bilgisayara ulaşılamıyor "
+                    "(aynı ağda değilsiniz ya da ana bilgisayar kapalı)."
                 )
             except OfficeRefused as exc:
                 self.status.last_error = str(exc)

@@ -46,8 +46,8 @@ from klinik_shared.web import NavItem, Tier, create_base_app
 TIER = Tier(
     service="klinik-local",
     app_name="Klinik",
-    tagline="Randevular, seans kayıtları ve gelir. Bu veriler ofisten çıkmaz.",
-    badge="Ofis",
+    tagline="Randevular, seans kayıtları ve gelir. Veriler klinik bilgisayarlarında kalır.",
+    badge="Ana bilgisayar",
 )
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -67,8 +67,8 @@ REPLICA_NAV = tuple(item for item in NAV if item.href != "/hesap/ozet")
 REPLICA_TIER = Tier(
     service="klinik-local",
     app_name="Klinik",
-    tagline="Dizüstü kopya: ofis ağına bağlanınca ofisle eşitlenir.",
-    badge="Dizüstü",
+    tagline="Bağlı kopya: ana bilgisayarla aynı ağdayken eşitlenir.",
+    badge="Bağlı kopya",
 )
 
 
@@ -194,10 +194,10 @@ def install_password_notice(app: FastAPI, templates: Jinja2Templates) -> None:
             request,
             "error.html",
             {
-                "title": "Şifre ofiste değiştirilir",
+                "title": "Şifre ana bilgisayarda değiştirilir",
                 "message": (
-                    "Bu dizüstü kopyada şifre ve iki adımlı doğrulama değiştirilemez. "
-                    "Ofis bilgisayarında değiştirin; bir sonraki eşitlemede buraya da gelir."
+                    "Bu bağlı kopyada şifre ve iki adımlı doğrulama değiştirilemez. "
+                    "Ana bilgisayarda değiştirin; bir sonraki eşitlemede buraya da gelir."
                 ),
             },
             status_code=409,

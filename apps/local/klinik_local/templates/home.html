@@ -6,7 +6,7 @@
   {% if can_book %}<a class="btn" href="/randevular/yeni?baslangic={{ day.isoformat() }}T10:00&geri=home">+ Yeni Randevu</a>{% endif %}
 </div>
 {% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
-{% if open_conflicts %}<div class="alert alert--warn" role="status">Dizüstü kopyadan gelen {{ open_conflicts }} değişiklik kararınızı bekliyor: <a href="/ayarlar/cakismalar">Çakışmalar</a></div>{% endif %}
+{% if open_conflicts %}<div class="alert alert--warn" role="status">Bağlı bilgisayarlardan gelen {{ open_conflicts }} değişiklik kararınızı bekliyor: <a href="/ayarlar/cakismalar">Çakışmalar</a></div>{% endif %}
 
 {# Re-fetched when the schedule changes anywhere (Server-Sent Events). #}
 <div id="home" class="home" hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="sse:calendar, every 60s" hx-select="#home" hx-swap="outerHTML">
@@ -24,7 +24,7 @@
     {% if appointments %}
     <div class="table-wrap">
       <table class="day-list">
-        <thead><tr><th>Saat</th><th>Danışan</th><th>Terapist</th><th>Oda</th><th>Durum</th><th>Seans</th>{% if paid_visible %}<th class="num">Ödeme</th>{% endif %}</tr></thead>
+        <thead><tr><th>Saat</th><th>Danışan</th><th>Terapist</th><th>Oda</th><th>Durum</th><th>Seans</th>{% if paid_visible or can_pay %}<th class="num">Ödeme</th>{% endif %}</tr></thead>
         <tbody>
           {% for a in appointments %}
           {% set start = to_istanbul(a.starts_at) %}{% set end = to_istanbul(a.ends_at) %}
@@ -39,7 +39,11 @@
               {% elif can_record and a.therapist_id == user.id and a.status != 'cancelled' %}<a class="btn btn--small" href="/terapiler/yeni?randevu={{ a.id }}">Seansı kaydet</a>
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
-            {% if paid_visible %}<td class="num">{% if a.id in paid_visible %}{% if paid.get(a.id) %}{{ money(paid[a.id]) }}{% else %}<span class="muted">—</span>{% endif %}{% endif %}</td>{% endif %}
+            {% if paid_visible or can_pay %}<td class="num">
+              {% if a.id in paid_visible and paid.get(a.id) %}{{ money(paid[a.id]) }}
+              {% elif can_pay and a.status != 'cancelled' %}<a class="btn btn--small btn--secondary" href="/randevular/{{ a.id }}#odemeler">Ödeme al</a>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>{% endif %}
           </tr>
           {% endfor %}
         </tbody>

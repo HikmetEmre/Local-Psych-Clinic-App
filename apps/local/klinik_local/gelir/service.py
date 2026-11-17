@@ -15,7 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, insert, select, update
+from sqlalchemy import and_, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
@@ -213,13 +213,34 @@ class IncomeService:
         return scope == "all" or (scope == "own" and therapist_id == user.id)
 
     async def for_appointment(
-        self, conn: AsyncConnection, appointment_id: UUID
+        self, conn: AsyncConnection, appointment_id: UUID, *, recorded_by: UUID | None = None
     ) -> list[PaymentRow]:
+        """The appointment's payments; with ``recorded_by``, only those that person took."""
+        stmt = _select_payments().where(t.payments.c.appointment_id == appointment_id)
+        if recorded_by is not None:
+            stmt = stmt.where(t.payments.c.recorded_by == recorded_by)
+        rows = (await conn.execute(stmt.order_by(t.payments.c.paid_at))).all()
+        return [_row(r, self.cipher) for r in rows]
+
+    async def collected_for_others(
+        self, conn: AsyncConnection, user: CurrentUser, period: Period
+    ) -> list[PaymentRow]:
+        """Payments this person took for colleagues' appointments (cash to hand over).
+
+        Not the colleague's income: only what this person received themselves.
+        """
+        p, a = t.payments, t.appointments
+        start, end = period.bounds
         rows = (
             await conn.execute(
                 _select_payments()
-                .where(t.payments.c.appointment_id == appointment_id)
-                .order_by(t.payments.c.paid_at)
+                .where(
+                    p.c.recorded_by == user.id,
+                    a.c.therapist_id != user.id,
+                    p.c.paid_at >= start,
+                    p.c.paid_at < end,
+                )
+                .order_by(p.c.paid_at.desc())
             )
         ).all()
         return [_row(r, self.cipher) for r in rows]
@@ -244,10 +265,8 @@ class IncomeService:
         ).one_or_none()
         if appt is None:
             raise PaymentError("appointment_id", "Randevu bulunamadı.")
-        if not actor.has(Permission.INCOME_READ_ALL) and appt.therapist_id != actor.id:
-            raise PaymentError(
-                "appointment_id", "Yalnızca kendi randevularınıza ödeme girebilirsiniz."
-            )
+        # Anyone at the desk may take a payment for any appointment (payments.write);
+        # seeing a colleague's income is a different right (income.read_all).
         if appt.status == AppointmentStatus.CANCELLED.value:
             raise PaymentError("appointment_id", "İptal edilmiş randevuya ödeme girilemez.")
         if method not in {m.value for m in PaymentMethod}:
@@ -294,7 +313,13 @@ class IncomeService:
         p, a = t.payments, t.appointments
         where = [p.c.id == payment_id, p.c.voided_at.is_(None)]
         if not actor.has(Permission.INCOME_READ_ALL):
-            where.append(p.c.appointment_id.in_(select(a.c.id).where(a.c.therapist_id == actor.id)))
+            # Own appointments' payments, or a payment this person took (a mistake to fix).
+            where.append(
+                or_(
+                    p.c.appointment_id.in_(select(a.c.id).where(a.c.therapist_id == actor.id)),
+                    p.c.recorded_by == actor.id,
+                )
+            )
         row = (
             await conn.execute(
                 update(p)

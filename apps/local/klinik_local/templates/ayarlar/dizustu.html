@@ -1,30 +1,43 @@
 {% extends "base.html" %}
-{% block title %}Dizüstü kopya{% endblock %}
+{% block title %}Bağlı bilgisayarlar{% endblock %}
 {% block content %}
-<div class="page-head"><h1>Dizüstü kopya</h1></div>
+<div class="page-head"><h1>Bağlı bilgisayarlar</h1></div>
 {% include "ayarlar/_subnav.html" %}
 {% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
 {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
 
 <section class="card stack">
   <h2>Nasıl çalışır?</h2>
-  <p>Klinik sahibinin dizüstü bilgisayarına programın bir kopyası kurulur. Dizüstü ofis ağından uzaktayken de
-    çalışır: randevu, seans ve ödeme girilebilir. Ofis ağına bağlandığında değişiklikler her dakika iki yönlü eşitlenir.
-    Aynı kayıt iki yerde birden değiştirildiyse ofisteki hali korunur, dizüstündeki hali
-    <a href="/ayarlar/cakismalar">Çakışmalar</a> sayfasında karar için bekler.</p>
-  <p class="muted small">Kullanıcılar, odalar, terapi kataloğu ve yedekleme yalnızca bu (ofis) bilgisayarında yönetilir.</p>
+  <p>Bu bilgisayar <strong>ana bilgisayardır</strong>: tüm kayıtlar, yedekler ve 17:00 özeti burada. Başka bir terapistin
+    bilgisayarına programın <strong>bağlı bir kopyası</strong> kurulur. Kopya kendi başına çalışır (ana bilgisayar kapalıyken veya
+    klinikte değilken de randevu, seans, not ve ödeme girilebilir). İki bilgisayar aynı ağdayken değişiklikler her dakika
+    iki yönlü eşitlenir.</p>
+  <ul class="small">
+    <li>Kopya, <strong>sahibi olan kullanıcının görebildiklerini</strong> alır: takvimin tamamı, danışan listesi, kendi seansları,
+      kendi notları ve kendi gelir kayıtları. Sizin notlarınız, giderler ve diğer kullanıcıların şifreleri o bilgisayara hiç gitmez.</li>
+    <li>Aynı kayıt iki yerde birden değiştirildiyse burada (ana bilgisayarda) olan korunur; diğeri
+      <a href="/ayarlar/cakismalar">Çakışmalar</a> sayfasında kararınızı bekler.</li>
+    <li>Kullanıcılar, odalar, terapi kataloğu ve yedekleme yalnızca ana bilgisayarda yönetilir.</li>
+  </ul>
 </section>
 
 <section class="card stack">
   <h2>Yeni eşleştirme dosyası</h2>
-  <p>Dosya, dizüstündeki kurulum sihirbazında istenir. İçinde şifreleme anahtarları bulunduğu için seçtiğiniz parolayla
-    şifrelenir. Dosyayı USB bellekle taşıyın, kurulumdan sonra silin; parolayı ayrı bir yerde tutun.</p>
-  <p class="small">Ofis adresi: <code>{{ office_url }}</code>{% if not has_cert %} · <strong>Uyarı:</strong> HTTPS sertifikası bulunamadı (geliştirme ortamı).{% endif %}</p>
+  <p>Dosya, diğer bilgisayardaki kurulum sihirbazında istenir. İçinde şifreleme anahtarları bulunduğu için seçtiğiniz parolayla
+    şifrelenir. Dosyayı USB bellekle taşıyın, kurulumdan sonra silin; parolayı kurulumu yapan kişiye ayrıca söyleyin.</p>
+  <p class="small">Ana bilgisayarın adresi: <code>{{ office_url }}</code>{% if not has_cert %} · <strong>Uyarı:</strong> HTTPS sertifikası bulunamadı (geliştirme ortamı).{% endif %}</p>
   <form class="form-grid" method="post" action="/ayarlar/dizustu" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="field">
-      <label for="label">Dizüstünün adı</label>
-      <input id="label" name="label" type="text" maxlength="60" placeholder="Klinik sahibinin dizüstü" required>
+      <label for="user_id">Bilgisayar kimin?</label>
+      <select id="user_id" name="user_id" required>
+        <option value="">— Seçin —</option>
+        {% for p in people %}{% if p.id != user.id %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endif %}{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="label">Bilgisayarın adı (isteğe bağlı)</label>
+      <input id="label" name="label" type="text" maxlength="60" placeholder="ör. Ayşe'nin dizüstü">
     </div>
     <div class="field">
       <label for="passphrase">Dosya parolası</label>
@@ -39,15 +52,16 @@
 </section>
 
 <section class="card stack">
-  <h2>Eşleştirilmiş dizüstüler</h2>
+  <h2>Eşleştirilmiş bilgisayarlar</h2>
   {% if replicas %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Ad</th><th>Oluşturuldu</th><th>Son bağlantı</th><th>Durum</th><th></th></tr></thead>
+      <thead><tr><th>Ad</th><th>Kimin</th><th>Oluşturuldu</th><th>Son bağlantı</th><th>Durum</th><th></th></tr></thead>
       <tbody>
         {% for r in replicas %}
         <tr>
           <td>{{ r.label }}</td>
+          <td>{{ r.owner or 'Tüm kayıtlar' }}</td>
           <td>{{ r.created_at|datetime_tr }}{% if r.display_name %} · {{ r.display_name }}{% endif %}</td>
           <td>{% if r.last_seen_at %}{{ r.last_seen_at|datetime_tr }}{% else %}<span class="muted">Henüz bağlanmadı</span>{% endif %}</td>
           <td>{% if r.revoked_at %}<span class="badge badge--cancelled">İptal edildi</span>{% else %}<span class="badge badge--ok">Etkin</span>{% endif %}</td>
@@ -61,10 +75,10 @@
       </tbody>
     </table>
   </div>
-  <p class="muted small">Dizüstü kaybolursa eşleştirmeyi hemen iptal edin: ofisle bir daha eşitlenemez.
-    Dizüstünün diski BitLocker ile şifreli olmalıdır.</p>
+  <p class="muted small">Bir bilgisayar kaybolursa ya da çalışan ayrılırsa eşleştirmeyi hemen iptal edin: bir daha eşitlenemez.
+    Bağlı bilgisayarların diski BitLocker ile şifreli olmalıdır.</p>
   {% else %}
-  <p class="muted">Henüz eşleştirilmiş dizüstü yok.</p>
+  <p class="muted">Henüz eşleştirilmiş bilgisayar yok.</p>
   {% endif %}
 </section>
 {% endblock %}

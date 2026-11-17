@@ -241,18 +241,34 @@ def test_payments_by_role(clinic: Clinic) -> None:
 
     assert "odeme=1" in pay(clinic.a, a_appt, "1.500").headers["location"]
     assert "odeme=1" in pay(clinic.b, b_appt, "750,50").headers["location"]
-    # B may not pay into A's appointment, nor see its payments.
-    refused = pay(clinic.b, a_appt, "100")
-    assert "odeme_hatasi" in refused.headers["location"]
-    assert "Ödemeler" not in clinic.b.get(f"/randevular/{a_appt}").text
+    # B (an employee) takes a payment for A's appointment at the desk: allowed, and
+    # it is A's income. B sees only the payment B took, never A's other payments.
+    taken = pay(clinic.b, a_appt, "300")
+    assert "odeme=1" in taken.headers["location"]
+    a_page = clinic.b.get(f"/randevular/{a_appt}").text
+    assert "300,00 ₺" in a_page and "1.500,00 ₺" not in a_page
+    assert "yalnızca sizin aldığınız ödemeler" in a_page
 
     own = clinic.b.get("/gelir?donem=gun")
     assert own.status_code == 200
     assert "750,50 ₺" in own.text and "1.500,00 ₺" not in own.text
+    # ... the 300 is listed for handing over, not as B's income.
+    assert "Diğer terapistler adına aldığınız ödemeler" in own.text and "300,00 ₺" in own.text
+
+    # B can void the payment B took (a typing mistake), not A's.
+    taken_id = str(scalar(clinic.db, "SELECT id FROM payments WHERE amount = 300"))
+    a_own = str(scalar(clinic.db, "SELECT id FROM payments WHERE amount = 1500"))
+    clinic.b.post(f"/odemeler/{taken_id}/iptal", {"reason": "entry_error"})
+    clinic.b.post(f"/odemeler/{a_own}/iptal", {"reason": "entry_error"})
+    assert scalar(clinic.db, "SELECT voided_at IS NOT NULL FROM payments WHERE id = $1", taken_id)
+    assert not scalar(clinic.db, "SELECT voided_at IS NOT NULL FROM payments WHERE id = $1", a_own)
+    pay(clinic.b, a_appt, "200")
 
     everything = clinic.admin.get("/gelir?donem=gun")
-    assert "2.250,50 ₺" in everything.text
+    assert "2.450,50 ₺" in everything.text  # 1.500 + 750,50 + 200 (the voided 300 not counted)
     assert "Zeynep Arslan" in everything.text and "Elif Kaya" in everything.text
+    home = clinic.b.get(f"/?gun={day(0).isoformat()}&kim=hepsi").text
+    assert f"/randevular/{a_appt}#odemeler" in home and "Ödeme al" in home
 
 
 def test_payments_cannot_be_deleted_or_rewritten_by_the_app(clinic: Clinic) -> None:

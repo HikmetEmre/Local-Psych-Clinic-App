@@ -13,7 +13,7 @@
   <a class="segment" href="/ayarlar/yedek"{% if request.url.path.startswith('/ayarlar/yedek') %} aria-current="page"{% endif %}>Yedekleme</a>
   {% endif %}
   {% if "admin.users" in user.permissions %}
-  <a class="segment" href="/ayarlar/dizustu"{% if request.url.path.startswith('/ayarlar/dizustu') %} aria-current="page"{% endif %}>Dizüstü kopya</a>
+  <a class="segment" href="/ayarlar/dizustu"{% if request.url.path.startswith('/ayarlar/dizustu') %} aria-current="page"{% endif %}>Bağlı bilgisayarlar</a>
   <a class="segment" href="/ayarlar/cakismalar"{% if request.url.path.startswith('/ayarlar/cakismalar') %} aria-current="page"{% endif %}>Çakışmalar</a>
   {% endif %}
   {% endif %}

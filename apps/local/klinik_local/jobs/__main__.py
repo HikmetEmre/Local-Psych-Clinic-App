@@ -6,7 +6,10 @@ import argparse
 import asyncio
 import logging
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import asyncpg
 
 from klinik_local.jobs.backup import BackupError, rclone, record, run_backup
 from klinik_local.jobs.config import JobSettings
@@ -44,8 +47,35 @@ async def snapshot(settings: JobSettings) -> int:
     return 0
 
 
+def daily_slot(now: datetime, hour: int) -> datetime:
+    """The most recent daily run time (today at `hour`, or yesterday if not reached yet)."""
+    today = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    return today if now >= today else today - timedelta(days=1)
+
+
+async def last_daily_ok(settings: JobSettings) -> datetime | None:
+    try:
+        conn = await asyncpg.connect(
+            settings.backup_database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        )
+        try:
+            value = await conn.fetchval(
+                "SELECT value FROM backup_status WHERE key = 'last_daily_ok'"
+            )
+        finally:
+            await conn.close()
+        return datetime.fromisoformat(value) if value else None
+    except Exception:
+        log.exception("could not read backup status")
+        return None
+
+
 async def scheduler(settings: JobSettings) -> None:
-    """02:30 nightly backup, hourly 09-21, snapshot at 17:00."""
+    """Daily backup and snapshot at 17:00 (SNAPSHOT_HOUR), backups hourly 09-21.
+
+    The main computer is a laptop that may be closed at 17:00: the daily backup and the
+    snapshot then run as soon as it is on again (catch-up), never more than once per day.
+    """
     done: dict[str, str] = {}
     log.info("jobs scheduler started")
 
@@ -65,13 +95,16 @@ async def scheduler(settings: JobSettings) -> None:
     while True:
         now = to_istanbul(now_utc())
         day = now.date().isoformat()
-        hhmm = now.strftime("%H%M")
-        if hhmm >= "0230":
-            await once("daily", day, run_backup(settings, "daily"))
+        slot = daily_slot(now, settings.snapshot_hour)
+        if done.get("daily") != slot.isoformat():
+            last = await last_daily_ok(settings)
+            if last is None or to_istanbul(last) < slot:
+                await once("daily", slot.isoformat(), run_backup(settings, "daily"))
+            else:
+                done["daily"] = slot.isoformat()
+        await once("snapshot", slot.isoformat(), snapshot(settings))
         if 9 <= now.hour <= 21:
             await once("hourly", f"{day}-{now.hour}", run_backup(settings, "hourly"))
-        if now.hour >= settings.snapshot_hour:
-            await once("snapshot", day, snapshot(settings))
         await asyncio.sleep(30)
 
 

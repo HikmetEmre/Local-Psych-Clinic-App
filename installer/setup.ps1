@@ -1,20 +1,21 @@
 <#
   Nil Psikoloji - Klinik: native Windows setup. Run by the installer (elevated).
 
-  Office computer (mode=office), fresh install:
+  Main computer (mode=office; the owner's laptop), fresh install:
     - creates the database (PostgreSQL 16, 127.0.0.1:55432) as Windows service KlinikPostgres
     - generates every secret, writes them to ProgramData\...\config\klinik.env (Admins/SYSTEM only)
-    - creates this computer's HTTPS certificate and trusts it here; firewall rule for the
-      PRIVATE office network only (the owner's laptop syncs over it)
+    - creates this computer's HTTPS certificate and trusts it here; firewall rule for
+      PRIVATE networks only (the connected computers sync over it)
     - runs migrations, creates the admin user
     - installs services KlinikApp (https://localhost:8443) and KlinikJobs
     - connects Google Drive (backups + daily snapshot) if asked
     - writes the KEY SHEET to the desktop: print it, store it offline, delete the file
-  Owner's laptop (mode=laptop), fresh install:
-    - checks BitLocker (warns if the disk is not encrypted)
-    - reads the pairing file (keys, office address, certificate, token)
-    - creates its own database, migrates, copies everything from the office (first sync)
+  Connected computer (mode=laptop; e.g. the employee therapist's laptop), fresh install:
+    - reads the pairing file (keys, main computer's address, certificate, token)
+    - creates its own database, migrates, copies from the main computer what its user
+      may see (first sync)
     - installs service KlinikApp only (https://localhost:8443, this computer only)
+  Both: BitLocker check (client records are stored on the disk).
   Upgrade (database already exists): keeps data, keys and the kind of installation.
 #>
 param([Parameter(Mandatory = $true)][string]$Params)
@@ -107,9 +108,9 @@ try {
         $existing = Read-EnvFile
         $mode = if ($existing['LOCAL_MODE'] -eq 'replica') { 'laptop' } else { 'office' }
     }
-    Step "Installation: $(if ($mode -eq 'laptop') { "owner's laptop (copy)" } else { 'office computer' })"
+    Step "Installation: $(if ($mode -eq 'laptop') { 'connected computer (copy)' } else { 'main computer' })"
 
-    if ($mode -eq 'laptop') {
+    if ($true) {
         Step 'Checking disk encryption (BitLocker)'
         $protected = $false
         try {
@@ -117,8 +118,8 @@ try {
             $protected = ($vol.ProtectionStatus -eq 'On')
         } catch { $protected = $false }
         if (-not $protected) {
-            Write-Warning 'BitLocker is NOT on for the system disk. Client records will be stored on this laptop: turn on BitLocker (Settings > Privacy & security > Device encryption).'
-            $sheet += @('UYARI: Bu dizustunun diski BitLocker ile sifreli DEGIL.',
+            Write-Warning 'BitLocker is NOT on for the system disk. Client records will be stored on this computer: turn on BitLocker (Settings > Privacy & security > Device encryption).'
+            $sheet += @('UYARI: Bu bilgisayarin diski BitLocker ile sifreli DEGIL.',
                 'Danisan kayitlari bu bilgisayarda durur: Ayarlar > Gizlilik ve guvenlik > Cihaz sifreleme / BitLocker acin.', '')
         } else {
             Write-Host '   BitLocker is on.'
@@ -186,7 +187,7 @@ print(str(i)); print(str(i.to_public()))
 
         $sheet += @(
             'NIL PSIKOLOJI - KLINIK - ANAHTAR SAYFASI',
-            "Bilgisayar: $Host_ ($(if ($mode -eq 'laptop') { 'klinik sahibinin dizustu kopyasi' } else { 'ofis bilgisayari' }))",
+            "Bilgisayar: $Host_ ($(if ($mode -eq 'laptop') { 'bagli bilgisayar (kopya)' } else { 'ana bilgisayar' }))",
             "Olusturulma: $(Get-Date -Format 'dd.MM.yyyy HH:mm')",
             '',
             'BU SAYFAYI YAZDIRIN, GUVENLI BIR YERDE SAKLAYIN,',
@@ -263,7 +264,7 @@ print(str(i)); print(str(i.to_public()))
             -LocalPort $HttpsPort -Profile Private -RemoteAddress LocalSubnet -Action Allow | Out-Null
         $public = Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $_.NetworkCategory -eq 'Public' }
         if ($public) {
-            Write-Warning "The network '$($public[0].Name)' is set to PUBLIC: the owner's laptop cannot sync until it is set to PRIVATE (Settings > Network > Properties > Private)."
+            Write-Warning "The network '$($public[0].Name)' is set to PUBLIC: connected computers cannot sync until it is set to PRIVATE (Settings > Network > Properties > Private)."
         }
     }
 
@@ -295,13 +296,13 @@ print(str(i)); print(str(i.to_public()))
     }
 
     if ($mode -eq 'laptop') {
-        Step 'First copy from the office'
+        Step 'First copy from the main computer'
         $out = & $Py -m klinik_local.service --env $EnvFile manage replica-sync 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   $out"
         } else {
-            Write-Warning "The office could not be reached now ($out). The copy is made automatically as soon as this laptop is on the office network; sign-in works after that."
-            $sheet += @('', 'NOT: Ilk esitleme yapilamadi. Dizustu ofis agina baglaninca otomatik yapilir;', '     kullanicilar ve kayitlar ancak ondan sonra gelir.')
+            Write-Warning "The main computer could not be reached now ($out). The copy is made automatically as soon as both are on the same network; sign-in works after that."
+            $sheet += @('', 'NOT: Ilk esitleme yapilamadi. Iki bilgisayar ayni agda oldugunda otomatik yapilir;', '     kullanici ve kayitlar ancak ondan sonra gelir.')
         }
     }
 
@@ -310,7 +311,7 @@ print(str(i)); print(str(i.to_public()))
     New-Item -ItemType Directory -Force -Path $serviceDir | Out-Null
     $defs = @(@{ id = 'KlinikApp'; target = 'app'; name = 'Nil Psikoloji - Klinik'; desc = "Klinik programi ($LocalUrl)" })
     if ($mode -eq 'office') {
-        $defs += @{ id = 'KlinikJobs'; target = 'jobs'; name = 'Nil Psikoloji - Yedekleme ve ozet'; desc = 'Gece yedegi, saatlik yedek, 17:00 gunluk ozet' }
+        $defs += @{ id = 'KlinikJobs'; target = 'jobs'; name = 'Nil Psikoloji - Yedekleme ve ozet'; desc = '17:00 gunluk yedek ve ozet (kapaliysa acilinca), saatlik yedek' }
     }
     foreach ($s in $defs) {
         $exe = Join-Path $serviceDir "$($s.id).exe"
@@ -366,8 +367,8 @@ print(str(i)); print(str(i.to_public()))
     if ($sheet.Count -gt 0) {
         $sheet += @('', "Program adresi (bu bilgisayarda): $LocalUrl")
         if ($mode -eq 'office') {
-            $sheet += @("Dizustu kopyanin ofise ulastigi adres: https://$($Host_):$HttpsPort",
-                'Dizustu kopya: programda Ayarlar > Dizustu kopya sayfasindan eslestirme dosyasi olusturun.')
+            $sheet += @("Bagli bilgisayarlarin ulastigi adres: https://$($Host_):$HttpsPort",
+                'Diger terapistin bilgisayari: programda Ayarlar > Bagli bilgisayarlar sayfasindan eslestirme dosyasi olusturun.')
         }
         $sheet += @("Ayarlar dosyasi: $EnvFile")
         $desktop = [Environment]::GetFolderPath('Desktop')

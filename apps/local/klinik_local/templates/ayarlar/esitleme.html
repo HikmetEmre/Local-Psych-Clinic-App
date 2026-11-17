@@ -4,23 +4,23 @@
 <div class="page-head"><h1>Eşitleme</h1></div>
 {% include "ayarlar/_subnav.html" %}
 <section class="card stack">
-  <p>Bu bilgisayar, ofis bilgisayarındaki programın <strong>dizüstü kopyasıdır</strong>. Ofis ağına bağlıyken değişiklikler
-    her dakika iki yönlü eşitlenir; bağlı değilken burada çalışmaya devam edebilirsiniz.</p>
+  <p>Bu bilgisayar, ana bilgisayardaki programın <strong>bağlı kopyasıdır</strong>. İki bilgisayar aynı ağdayken değişiklikler
+    her dakika iki yönlü eşitlenir; değilken burada çalışmaya devam edebilirsiniz.</p>
   {% if s.last_error %}<div class="alert alert--warn" role="status">{{ s.last_error }}</div>
-  {% elif s.last_ok %}<div class="alert" role="status">Ofisle eşit. Son eşitleme: {{ fmt(s.last_ok) }}</div>{% endif %}
+  {% elif s.last_ok %}<div class="alert" role="status">Ana bilgisayarla eşit. Son eşitleme: {{ fmt(s.last_ok) }}</div>{% endif %}
   <dl class="facts">
-    <div><dt>Ofis adresi</dt><dd><code>{{ office_url }}</code></dd></div>
+    <div><dt>Ana bilgisayarın adresi</dt><dd><code>{{ office_url }}</code></dd></div>
     <div><dt>Son başarılı eşitleme</dt><dd>{% if s.last_ok %}{{ fmt(s.last_ok) }}{% else %}<span class="muted">Henüz yok</span>{% endif %}</dd></div>
     <div><dt>Son deneme</dt><dd>{% if s.last_attempt %}{{ fmt(s.last_attempt) }}{% else %}—{% endif %}</dd></div>
     <div><dt>Gönderilmeyi bekleyen değişiklik</dt><dd>{{ s.pending }}</dd></div>
     <div><dt>Bu oturumda gönderilen / alınan</dt><dd>{{ s.sent }} / {{ s.received }}</dd></div>
-    <div><dt>Ofiste karar bekleyen çakışma (bu oturumda)</dt><dd>{{ s.conflicts }}</dd></div>
+    <div><dt>Ana bilgisayarda karar bekleyen çakışma (bu oturumda)</dt><dd>{{ s.conflicts }}</dd></div>
   </dl>
   <form method="post" action="/ayarlar/esitleme">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="btn" type="submit">Şimdi eşitle</button>
   </form>
-  <p class="muted small">Kullanıcılar, odalar, terapi kataloğu, yedekleme ve şifre değişikliği ofis bilgisayarında yapılır;
-    buraya eşitleme ile gelir. Çakışmalar ofisteki Ayarlar → Çakışmalar sayfasında çözülür.</p>
+  <p class="muted small">Kullanıcılar, odalar, terapi kataloğu, yedekleme ve şifre değişikliği ana bilgisayarda yapılır;
+    buraya eşitleme ile gelir. Çakışmalar ana bilgisayardaki Ayarlar → Çakışmalar sayfasında çözülür.</p>
 </section>
 {% endblock %}

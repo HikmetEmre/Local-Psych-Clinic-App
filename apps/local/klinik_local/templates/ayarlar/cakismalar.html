@@ -5,8 +5,8 @@
 {% include "ayarlar/_subnav.html" %}
 {% if notice %}<div class="alert" role="status">{{ notice }}</div>{% endif %}
 {% if error %}<div class="alert alert--error" role="alert">{{ error }}</div>{% endif %}
-<p class="muted">Dizüstü kopyadan gelen ve otomatik birleştirilemeyen değişiklikler. Şu an ofisteki hali geçerlidir;
-  dizüstündeki hali burada saklanır. Her biri için karar verin.</p>
+<p class="muted">Bağlı bilgisayarlardan gelen ve otomatik birleştirilemeyen değişiklikler. Şu an ana bilgisayardaki
+  hali geçerlidir; diğer bilgisayardaki hali burada saklanır. Her biri için karar verin.</p>
 {% for c in items %}
 <section class="card stack">
   <div class="row row--between">
@@ -17,7 +17,7 @@
   {% if c.fields %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Alan</th><th>Ofisteki hali</th><th>Dizüstündeki hali</th></tr></thead>
+      <thead><tr><th>Alan</th><th>Ana bilgisayardaki hali</th><th>Bağlı bilgisayardaki hali</th></tr></thead>
       <tbody>
         {% for label, office, laptop in c.fields %}
         <tr><td>{{ label }}</td><td class="pre">{{ office }}</td><td class="pre">{{ laptop }}</td></tr>
@@ -30,12 +30,12 @@
     <form method="post" action="/ayarlar/cakismalar/{{ c.id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="karar" value="kept_office">
-      <button class="btn btn--secondary" type="submit">{% if c.office_exists %}Ofisteki kalsın{% else %}Dizüstündekini at{% endif %}</button>
+      <button class="btn btn--secondary" type="submit">{% if c.office_exists %}Ana bilgisayardaki kalsın{% else %}Gelen kaydı at{% endif %}</button>
     </form>
     <form method="post" action="/ayarlar/cakismalar/{{ c.id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="karar" value="applied_laptop">
-      <button class="btn" type="submit">Dizüstündekini uygula</button>
+      <button class="btn" type="submit">Gelen hali uygula</button>
     </form>
   </div>
 </section>

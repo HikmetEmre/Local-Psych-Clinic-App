@@ -35,10 +35,15 @@ PAGE = 2000
 MAX_ITEMS = 1000
 OVERLAP = {"no_overlap_therapist", "no_overlap_room", "no_overlap_client"}
 MESSAGES = {
-    "overlap": "Dizüstünde verilen randevu ofisteki bir randevuyla çakışıyor; uygulanmadı.",
-    "changed_on_both": "Bu kayıt hem ofiste hem dizüstünde değiştirildi; ofisteki hali korundu.",
-    "rejected": "Dizüstündeki kayıt ofiste uygulanamadı.",
-    "renumbered": "Seans numarası ofiste dolu olduğu için yeni numara verildi.",
+    "overlap": (
+        "Bağlı bilgisayarda verilen randevu ana bilgisayardaki bir randevuyla çakışıyor; "
+        "uygulanmadı."
+    ),
+    "changed_on_both": (
+        "Bu kayıt iki bilgisayarda birden değiştirildi; ana bilgisayardaki hali korundu."
+    ),
+    "rejected": "Bağlı bilgisayardaki kayıt ana bilgisayarda uygulanamadı.",
+    "renumbered": "Seans numarası ana bilgisayarda dolu olduğu için yeni numara verildi.",
 }
 
 
@@ -59,6 +64,59 @@ def _constraint(exc: IntegrityError) -> str | None:
 def _sqlstate(exc: IntegrityError) -> str | None:
     cause = getattr(exc.orig, "__cause__", None) or exc.orig
     return getattr(cause, "sqlstate", None)
+
+
+# A colleague's account on a copy cannot be used to log in there.
+LOCKED_HASH = "!locked:managed-on-the-main-computer"
+
+# What a copy that belongs to a therapist (not the admin) receives, per table.
+OWN_ROWS = {
+    "therapy_sessions": "therapist_id = :u",
+    "client_notes": "author_id = :u",
+    "note_revisions": "edited_by = :u",
+    "payments": (
+        "(recorded_by = :u OR appointment_id IN "
+        "(SELECT id FROM appointments WHERE therapist_id = :u))"
+    ),
+    "expenses": "false",
+    "recovery_codes": "user_id = :u",
+}
+
+
+@dataclass(frozen=True)
+class Scope:
+    """Whose copy this is. user_id None: an unbound copy that receives everything."""
+
+    user_id: UUID | None
+    sees_all: bool
+
+    @property
+    def filtered(self) -> bool:
+        return self.user_id is not None and not self.sees_all
+
+
+async def scope_for(conn: AsyncConnection, replica_id: UUID) -> Scope:
+    user_id = (
+        await conn.execute(text("SELECT user_id FROM replicas WHERE id = :id"), {"id": replica_id})
+    ).scalar_one_or_none()
+    if user_id is None:
+        return Scope(None, True)
+    sees_all = (
+        await conn.execute(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM user_permissions WHERE user_id = :u "
+                "AND permission = 'sessions.read_others')"
+            ),
+            {"u": user_id},
+        )
+    ).scalar_one()
+    return Scope(user_id, bool(sees_all))
+
+
+def _mask_user(row: Row, scope: Scope) -> Row:
+    if not scope.filtered or row["id"] == scope.user_id:
+        return row
+    return {**row, "password_hash": LOCKED_HASH, "totp_secret_enc": None, "totp_confirmed_at": None}
 
 
 @dataclass
@@ -87,21 +145,34 @@ class Result:
 
 
 async def feed(
-    conn: AsyncConnection, since: int, *, full: bool, limit: int = PAGE
+    conn: AsyncConnection,
+    since: int,
+    *,
+    full: bool,
+    scope: Scope | None = None,
+    limit: int = PAGE,
 ) -> dict[str, Any]:
+    scope = scope or Scope(None, True)
+    params: dict[str, Any] = {"u": scope.user_id}
+
+    def only(table: str) -> str:
+        return f" AND {OWN_ROWS[table]}" if scope.filtered and table in OWN_ROWS else ""
+
     out: dict[str, Any] = {"full": None, "rows": [], "next": since, "more": False}
     if full:
-        out["full"] = {
-            spec.name: [store.encode_row(r) for r in await store.select_rows(conn, spec.name)]
-            for spec in FULL
-        }
+        out["full"] = {}
+        for spec in FULL:
+            rows = await store.select_rows(conn, spec.name, "WHERE true" + only(spec.name), params)
+            if spec.name == "users":
+                rows = [_mask_user(r, scope) for r in rows]
+            out["full"][spec.name] = [store.encode_row(r) for r in rows]
     candidates: list[tuple[int, str, Row]] = []
     for spec in INCREMENTAL:
         rows = await store.select_rows(
             conn,
             spec.name,
-            "WHERE change_seq > :since ORDER BY change_seq LIMIT :limit",
-            {"since": since, "limit": limit + 1},
+            "WHERE change_seq > :since" + only(spec.name) + " ORDER BY change_seq LIMIT :limit",
+            {"since": since, "limit": limit + 1, **params},
         )
         candidates += [(int(r["change_seq"]), spec.name, r) for r in rows]
     candidates.sort(key=lambda item: item[0])
@@ -181,7 +252,32 @@ async def _respond(
     return Result(table, row_id, result, office, seq, methods, msg)
 
 
-async def apply_item(conn: AsyncConnection, replica_id: UUID, item: dict[str, Any]) -> Result:
+# A therapist's copy may only send what that therapist may write.
+OWNER_COLUMN = {
+    "therapy_sessions": "therapist_id",
+    "client_notes": "author_id",
+    "note_revisions": "edited_by",
+}
+
+
+def _check_allowed(scope: Scope, table: str, row: Row, current: Row | None) -> None:
+    if not scope.filtered:
+        return
+    if table == "expenses":
+        raise ValueError("this copy may not send expenses")
+    column = OWNER_COLUMN.get(table)
+    if column is not None and (
+        row.get(column) != scope.user_id
+        or (current is not None and current.get(column) != scope.user_id)
+    ):
+        raise ValueError(f"{table}: not this user's record")
+    if table == "payments" and current is None and row.get("recorded_by") != scope.user_id:
+        raise ValueError("payments: must be recorded by this user")
+
+
+async def apply_item(
+    conn: AsyncConnection, replica_id: UUID, item: dict[str, Any], scope: Scope | None = None
+) -> Result:
     table = str(item.get("t"))
     spec = BY_NAME.get(table)
     if spec is None or not spec.pushable:
@@ -193,6 +289,7 @@ async def apply_item(conn: AsyncConnection, replica_id: UUID, item: dict[str, An
     methods = [store.decode_row(m) for m in item.get("methods") or []]
     base = item.get("base")
     current = await _current(conn, table, row_id, lock=True)
+    _check_allowed(scope or Scope(None, True), table, row, current)
     if table == "clients" and current is not None:
         row.pop("session_counter", None)  # the office keeps counting its own
 
@@ -263,14 +360,15 @@ async def apply_push(
         raise ValueError("too many items")
     order = {name: i for i, name in enumerate(store.PUSH_ORDER)}
     items = sorted(items, key=lambda it: order.get(str(it.get("t")), 99))
-    results = [(await apply_item(conn, replica_id, it)).as_json() for it in items]
+    scope = await scope_for(conn, replica_id)
+    results = [(await apply_item(conn, replica_id, it, scope)).as_json() for it in items]
     label = (
         await conn.execute(text("SELECT label FROM replicas WHERE id = :id"), {"id": replica_id})
     ).scalar_one()
     for entry in body.get("audit") or []:
         row = store.decode_row(entry)
         detail = json.loads(row.get("detail") or "{}")
-        detail["via"] = f"dizüstü: {label}"
+        detail["via"] = f"bağlı bilgisayar: {label}"
         await conn.execute(
             text(
                 "INSERT INTO audit_log (ts, actor_id, actor_kind, action, entity_type, entity_id, "
@@ -324,9 +422,15 @@ def build_api_router(sync_engine: AsyncEngine) -> APIRouter:
         async with sync_engine.begin() as conn:
             # One consistent picture for the whole page.
             await conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
-            if await replica_for(request, conn) is None:
+            replica_id = await replica_for(request, conn)
+            if replica_id is None:
                 return denied()
-            data = await feed(conn, int(body.get("since") or 0), full=bool(body.get("full")))
+            data = await feed(
+                conn,
+                int(body.get("since") or 0),
+                full=bool(body.get("full")),
+                scope=await scope_for(conn, replica_id),
+            )
         return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
     @router.post("/push")

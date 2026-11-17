@@ -59,9 +59,9 @@
   {% endif %}
   {% if replica_mode and user and replica_status is defined %}{% set rs = replica_status() %}
   <a class="replica-strip{% if rs.last_error %} replica-strip--off{% endif %}" href="/ayarlar/esitleme">
-    {% if rs.last_error %}Dizüstü kopya · ofise bağlı değil{% if rs.pending %} · {{ rs.pending }} değişiklik gönderilmeyi bekliyor{% endif %}
-    {% elif rs.last_ok %}Dizüstü kopya · ofisle eşit · {{ rs.last_ok|datetime_tr }}
-    {% else %}Dizüstü kopya · henüz eşitlenmedi{% endif %}
+    {% if rs.last_error %}Bağlı kopya · ana bilgisayara bağlı değil{% if rs.pending %} · {{ rs.pending }} değişiklik gönderilmeyi bekliyor{% endif %}
+    {% elif rs.last_ok %}Bağlı kopya · ana bilgisayarla eşit · {{ rs.last_ok|datetime_tr }}
+    {% else %}Bağlı kopya · henüz eşitlenmedi{% endif %}
   </a>
   {% endif %}
   <main class="page{% block page_class %}{% endblock %}">

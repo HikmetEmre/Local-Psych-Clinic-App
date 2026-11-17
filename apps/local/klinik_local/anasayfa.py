@@ -155,6 +155,7 @@ def build_router(
             "who": who,
             "can_book": user.has(Permission.SCHEDULE_WRITE_ALL),
             "can_record": is_therapist,
+            "can_pay": user.has(Permission.PAYMENTS_WRITE),
             "money": format_try,
             "to_istanbul": to_istanbul,
             "notice": "Randevu kaydedildi." if params.get("durum") == "kaydedildi" else None,

@@ -161,13 +161,19 @@ def build_router(
         status: int = 200,
         conflict: BookingConflict | None = None,
     ) -> Response:
-        show_payments = appointment is not None and income.can_see(user, appointment.therapist_id)
+        # Full payment list: own appointments (or admin). Anyone with payments.write can
+        # still take a payment here and sees only the ones they took themselves.
+        full_view = appointment is not None and income.can_see(user, appointment.therapist_id)
+        can_take = appointment is not None and user.has(Permission.PAYMENTS_WRITE)
+        show_payments = full_view or can_take
         async with auth.tx(user) as conn:
             therapists = await service.therapists(conn)
             rooms = await service.rooms(conn)
             people = await clients.search(conn, status="active") if appointment is None else []
             payments = (
-                await income.for_appointment(conn, appointment.id)
+                await income.for_appointment(
+                    conn, appointment.id, recorded_by=None if full_view else user.id
+                )
                 if appointment is not None and show_payments
                 else []
             )
@@ -191,7 +197,8 @@ def build_router(
                 "show_payments": show_payments,
                 "payments": payments,
                 "paid_total": sum((p.amount for p in payments if not p.voided), Decimal("0")),
-                "can_pay": user.has(Permission.PAYMENTS_WRITE) and show_payments,
+                "can_pay": can_take,
+                "full_view": full_view,
                 "can_write": user.has(Permission.SCHEDULE_WRITE_ALL),
                 "can_record": user.has(Permission.SESSIONS_WRITE_OWN),
                 "money": format_try,

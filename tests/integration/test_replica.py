@@ -90,7 +90,12 @@ def pair(local_db: LocalDb, database_factory: Callable[[], str]) -> Iterator[Pai
 
         sealed = office.post(
             "/ayarlar/dizustu",
-            {"label": "Sahibin dizüstü", "passphrase": PASSPHRASE, "passphrase2": PASSPHRASE},
+            {
+                "label": "Sahibin dizüstü",
+                "user_id": str(ADMIN_ID),
+                "passphrase": PASSPHRASE,
+                "passphrase2": PASSPHRASE,
+            },
         )
         assert sealed.status_code == 200
         assert sealed.headers["content-disposition"].startswith("attachment")
@@ -133,7 +138,12 @@ def pair(local_db: LocalDb, database_factory: Callable[[], str]) -> Iterator[Pai
 def test_pairing_file_is_encrypted_and_needs_the_passphrase(pair: Pair) -> None:
     sealed = pair.office.post(
         "/ayarlar/dizustu",
-        {"label": "İkinci", "passphrase": PASSPHRASE, "passphrase2": PASSPHRASE},
+        {
+            "label": "İkinci",
+            "user_id": str(A_ID),
+            "passphrase": PASSPHRASE,
+            "passphrase2": PASSPHRASE,
+        },
     )
     raw = sealed.content
     assert b"fernet" not in raw and b"token" not in raw
@@ -151,7 +161,7 @@ def test_first_copy_brings_users_rooms_clients_and_catalog(pair: Pair) -> None:
         assert office == laptop, table
     page = pair.laptop.get("/danisanlar")
     assert "Zeynep Arslan" in page.text
-    assert "Dizüstü" in page.text  # the laptop says what it is
+    assert "Bağlı kopya" in page.text  # the copy says what it is
 
 
 def test_laptop_hides_office_only_settings(pair: Pair) -> None:
@@ -320,7 +330,7 @@ def test_sync_api_needs_the_token(pair: Pair) -> None:
 
 def test_status_page_on_the_laptop(pair: Pair) -> None:
     page = pair.laptop.get("/ayarlar/esitleme")
-    assert "Ofisle eşit" in page.text and "https://ofis.test" in page.text
+    assert "Ana bilgisayarla eşit" in page.text and "https://ofis.test" in page.text
     execute(pair.office_db, "SELECT 1")
 
 

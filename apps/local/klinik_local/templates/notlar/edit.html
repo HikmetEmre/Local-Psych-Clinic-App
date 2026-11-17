@@ -6,7 +6,7 @@
   <a class="btn btn--secondary" href="/danisanlar/{{ client.id }}/notlar#not-{{ note_id }}">← Klinik notlar</a>
 </div>
 {% if conflict %}
-<div class="alert alert--warn" role="alert">Bu not siz düzenlerken başka bir yerde (ör. dizüstü kopyada) değiştirildi.
+<div class="alert alert--warn" role="alert">Bu not siz düzenlerken başka bir yerde (ör. bağlı bilgisayarda) değiştirildi.
   Aşağıda güncel hali var; değişikliğinizi yeniden yapın.</div>
 {% elif errors %}
 <div class="alert alert--error" role="alert">{% for m in errors.values() %}{{ m }} {% endfor %}</div>

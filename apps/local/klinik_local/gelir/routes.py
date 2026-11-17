@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import date
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -101,6 +102,11 @@ def build_router(
             spent = (
                 await expenses.in_period(conn, period.first, period.last) if clinic_view else None
             )
+            collected = (
+                await income.collected_for_others(conn, user, period)
+                if scope == "own" and user.has(Permission.PAYMENTS_WRITE)
+                else []
+            )
         largest = max((amount for _, amount in result.by_day), default=0) or 1
 
         def url(**changes: Any) -> str:
@@ -133,6 +139,8 @@ def build_router(
                 "can_pay": user.has(Permission.PAYMENTS_WRITE),
                 "can_export": user.has(Permission.ADMIN_EXPORT) and scope == "all",
                 "spent": spent,
+                "collected": collected,
+                "collected_total": sum((p.amount for p in collected if not p.voided), Decimal("0")),
                 "month_names": MONTHS_TR,
                 "months": monthly(
                     period.first, period.last, result.by_day, spent.items if spent else []
