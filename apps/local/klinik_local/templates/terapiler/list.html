@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Terapiler{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Terapiler</h1>
+  <div class="row">
+    {% if can_export %}<a class="btn btn--secondary" href="{{ link(params, path='/terapiler/disa-aktar.csv', page=None) }}">CSV indir</a>{% endif %}
+    {% if can_write %}<a class="btn" href="/terapiler/yeni">+ Yeni Seans</a>{% endif %}
+  </div>
+</div>
+
+{% if deleted %}<div class="alert" role="status">Seans kaydı silindi.</div>{% endif %}
+
+{# ---- age-group tabs: from the database, plus a leading "Tümü" ---- #}
+<nav class="segments" aria-label="Yaş grupları">
+  <a class="segment" href="{{ link(params, group=None, age_group=None, method=None, page=None) }}"{% if not group %} aria-current="page"{% endif %}>
+    Tümü <span class="segment__count">{{ counts.get('all', 0) }}</span>
+  </a>
+  {% for g in catalog.age_groups %}
+  <a class="segment" href="{{ link(params, group=g.code, age_group=None, method=None, page=None) }}"{% if group and group.code == g.code %} aria-current="page"{% endif %}>
+    {{ g.label_tr }} <span class="segment__count">{{ counts.get(g.code, 0) }}</span>
+  </a>
+  {% endfor %}
+</nav>
+
+{# ---- filters: a plain GET form, so every filter lives in the URL ---- #}
+<form class="card filter-card" method="get" action="/terapiler">
+  {% if group %}<input type="hidden" name="group" value="{{ group.code }}">{% endif %}
+  <input type="hidden" name="sort" value="{{ filters.sort }}">
+  <input type="hidden" name="page_size" value="{{ page.page_size }}">
+
+  <div class="chips" role="group" aria-label="Yöntem">
+    <span class="chips__label">Yöntem:</span>
+    {% for m in chip_defaults %}
+    <label class="chip-check"><input type="checkbox" name="method" value="{{ m.code }}"{% if m.code in filters.methods %} checked{% endif %}><span>{{ m.label_tr }}</span></label>
+    {% endfor %}
+    {% if chip_others %}
+    <details class="more"{% for m in chip_others %}{% if m.code in filters.methods %} open{% endif %}{% endfor %}>
+      <summary class="chip">{% if chip_defaults %}+ Diğer{% else %}Yöntem seç{% endif %} ▾</summary>
+      <div class="more__panel">
+        {% for m in chip_others %}
+        <label class="chip-check"><input type="checkbox" name="method" value="{{ m.code }}"{% if m.code in filters.methods %} checked{% endif %}><span>{{ m.label_tr }}</span></label>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="filters">
+    <div class="field">
+      <label for="f-format">Format</label>
+      <select id="f-format" name="format">
+        <option value="">Tümü</option>
+        {% for f in formats %}<option value="{{ f.code }}"{% if filters.format == f.code %} selected{% endif %}>{{ f.label_tr }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if sees_others %}
+    <div class="field">
+      <label for="f-therapist">Terapist</label>
+      <select id="f-therapist" name="therapist_id">
+        <option value="">Tümü</option>
+        {% for th in therapists %}<option value="{{ th.id }}"{% if filters.therapist_id == th.id %} selected{% endif %}>{{ th.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="field">
+      <label for="f-from">Başlangıç</label>
+      <input id="f-from" name="date_from" type="date" value="{{ filters.date_from or '' }}">
+    </div>
+    <div class="field">
+      <label for="f-to">Bitiş</label>
+      <input id="f-to" name="date_to" type="date" value="{{ filters.date_to or '' }}">
+    </div>
+    <div class="field field--wide">
+      <label for="f-q">Ara</label>
+      <input id="f-q" name="q" type="search" value="{{ filters.q }}" placeholder="Danışan kodu veya ad">
+    </div>
+  </div>
+  <div class="chips" role="group" aria-label="Durum">
+    <span class="chips__label">Durum:</span>
+    {% for code, label in statuses %}
+    <label class="chip-check"><input type="checkbox" name="status" value="{{ code }}"{% if code in filters.statuses %} checked{% endif %}><span>{{ label }}</span></label>
+    {% endfor %}
+  </div>
+  <div class="form-actions">
+    <button class="btn" type="submit">Uygula</button>
+    <a class="btn btn--secondary" href="{{ '/terapiler?group=' ~ group.code if group else '/terapiler' }}">Filtreleri temizle</a>
+  </div>
+</form>
+
+{% if page.total %}
+<div class="table-wrap">
+  <table class="sessions">
+    <thead>
+      <tr>
+        <th class="col-expand"><span class="sr-only">Aç</span></th>
+        {% for key, label in columns %}
+        <th scope="col">
+          {% if key %}
+          {% set active = filters.sort.lstrip('-') == key %}
+          {% set desc = filters.sort.startswith('-') %}
+          <a class="sort{% if active %} sort--active{% endif %}" href="{{ link(params, sort=('' if active and desc else '-') ~ key, page=None) }}">
+            {{ label }}{% if active %} {{ '↓' if desc else '↑' }}{% endif %}
+          </a>
+          {% else %}{{ label }}{% endif %}
+        </th>
+        {% endfor %}
+        <th scope="col"><span class="sr-only">İşlemler</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in page.items %}
+      <tr>
+        <td class="col-expand">
+          <button class="icon-btn" type="button" title="Danışanın son seansları"
+                  hx-get="/terapiler/zaman/{{ s.client_id }}?satir={{ s.id }}"
+                  hx-target="#tl-{{ s.id }}" hx-swap="outerHTML">▸</button>
+        </td>
+        <td><code{% if names.get(s.client_id) %} title="{{ names[s.client_id] }}"{% endif %}>{{ s.client_code }}</code></td>
+        <td>{{ s.age_at_session if s.age_at_session is not none else '—' }}</td>
+        <td>#{{ s.session_number }}</td>
+        <td>{{ s.session_date|datetime_tr }}</td>
+        <td>
+          {% set p = s.primary_method %}
+          {% if p %}
+          <span title="{{ s.methods|map(attribute='label_tr')|join(', ') }}">{{ p.label_tr }}{% if s.methods|length > 1 %} <span class="badge">+{{ s.methods|length - 1 }}</span>{% endif %}</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>{{ s.format_label }}</td>
+        <td>{{ s.duration_min }} dk</td>
+        {% if sees_others %}<td>{{ s.therapist_name }}</td>{% endif %}
+        <td><span class="badge badge--{{ s.status }}">{{ status_labels.get(s.status, s.status) }}</span></td>
+        <td class="actions">
+          <a href="/terapiler/{{ s.id }}">Görüntüle</a>
+          {% if can_write and s.therapist_id == user.id %}<a href="/terapiler/{{ s.id }}/duzenle">Düzenle</a>{% endif %}
+        </td>
+      </tr>
+      <tr id="tl-{{ s.id }}" hidden></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pager">
+  <span class="muted">{{ page.first }}–{{ page.last }} / {{ page.total }}</span>
+  <nav class="pager__pages" aria-label="Sayfalar">
+    {% if page.page > 1 %}<a href="{{ link(params, page=page.page - 1) }}" aria-label="Önceki">‹</a>{% endif %}
+    {% for n in range(1, page.pages + 1) %}
+      {% if n == 1 or n == page.pages or (n - page.page)|abs <= 2 %}
+      <a href="{{ link(params, page=n) }}"{% if n == page.page %} aria-current="page"{% endif %}>{{ n }}</a>
+      {% elif (n - page.page)|abs == 3 %}<span class="muted">…</span>{% endif %}
+    {% endfor %}
+    {% if page.page < page.pages %}<a href="{{ link(params, page=page.page + 1) }}" aria-label="Sonraki">›</a>{% endif %}
+  </nav>
+  <span class="muted">Sayfa başına:
+    {% for size in page_sizes %}
+    {% if size == page.page_size %}<strong>{{ size }}</strong>{% else %}<a href="{{ link(params, page_size=size, page=None) }}">{{ size }}</a>{% endif %}
+    {% endfor %}
+  </span>
+</div>
+{% elif any_in_group == 0 %}
+<div class="card empty">
+  <p>{% if group %}Bu yaş grubunda henüz seans kaydı yok.{% else %}Henüz seans kaydı yok.{% endif %}</p>
+  {% if can_write %}<p><a class="btn" href="/terapiler/yeni">+ Yeni Seans</a></p>{% endif %}
+</div>
+{% else %}
+<div class="card empty">
+  <p>Filtrelere uyan kayıt bulunamadı.</p>
+  <p><a class="btn btn--secondary" href="{{ '/terapiler?group=' ~ group.code ~ '&date_from=' if group else '/terapiler?date_from=' }}">Filtreleri temizle</a></p>
+</div>
+{% endif %}
+{% endblock %}

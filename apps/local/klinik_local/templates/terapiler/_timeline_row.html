@@ -1,0 +1,32 @@
+<tr id="tl-{{ row_id }}" class="timeline-row">
+  <td colspan="20">
+    <div class="timeline">
+      <div class="timeline__head">
+        <strong>Son seanslar</strong>
+        <button class="icon-btn" type="button" title="Kapat"
+                hx-get="/terapiler/zaman-kapat?satir={{ row_id }}"
+                hx-target="closest tr" hx-swap="outerHTML">✕</button>
+      </div>
+      {% if items %}
+      <table class="mini">
+        <thead><tr><th>Tarih</th><th>Seans</th><th>Yaş grubu</th><th>Birincil yöntem</th><th>Format</th><th>Durum</th></tr></thead>
+        <tbody>
+          {% for s in items %}
+          <tr>
+            <td><a href="/terapiler/{{ s.id }}">{{ s.session_date|datetime_tr }}</a></td>
+            <td>#{{ s.session_number }}</td>
+            <td>{{ s.age_group_label }}</td>
+            <td>{{ s.primary_method.label_tr if s.primary_method else '—' }}</td>
+            <td>{{ s.format_label }}</td>
+            <td><span class="badge badge--{{ s.status }}">{{ status_labels.get(s.status, s.status) }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">Kayıt yok.</p>
+      {% endif %}
+      <p class="small"><a href="/danisanlar/{{ client_id }}">Tüm geçmişi aç</a></p>
+    </div>
+  </td>
+</tr>

@@ -1,0 +1,51 @@
+{# Re-rendered by htmx whenever the client or the date changes. #}
+<div id="method-section" class="stack">
+  {% if section.group %}
+  <p><span class="badge badge--ok">Yaş Grubu: {{ section.group.label_tr }} ({{ section.age }})</span></p>
+  {% elif section.problem %}
+  <div class="alert alert--warn">{{ section.problem }}</div>
+  {% elif not values.client_id %}
+  <p class="muted small">Danışan seçildiğinde yaş grubu ve varsayılan yöntemler gösterilir.</p>
+  {% endif %}
+
+  <div class="field">
+    <label for="format_code">Format</label>
+    <select id="format_code" name="format_code" required>
+      {% for f in section.formats %}
+      <option value="{{ f.code }}"{% if values.format_code == f.code %} selected{% endif %}>{{ f.label_tr }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.format_code %}<div class="field__error">{{ errors.format_code }}</div>{% endif %}
+  </div>
+
+  <fieldset class="methods">
+    <legend>Yöntem(ler) <span class="muted small">— birincil yöntemi ★ ile işaretleyin</span></legend>
+    {% for title, items in (("Varsayılanlar", section.default_methods), ("Diğer yöntemler", section.other_methods)) %}
+    {% if items %}
+    <div class="methods__group">
+      <div class="methods__title">{{ title }}</div>
+      {% for m in items %}
+      <div class="method">
+        <label class="method__pick">
+          <input type="checkbox" name="method" value="{{ m.code }}"{% if m.code in values.methods %} checked{% endif %}>
+          <span>{{ m.label_tr }}</span>
+        </label>
+        <label class="method__star" title="Birincil yöntem">
+          <input type="radio" name="primary" value="{{ m.code }}"{% if values.primary == m.code %} checked{% endif %}>
+          <span aria-hidden="true">★</span><span class="sr-only">{{ m.label_tr }} birincil</span>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    <p class="muted small">Birincil seçilmezse ilk işaretlenen yöntem birincil sayılır.</p>
+    {% if errors.methods %}<div class="field__error">{{ errors.methods }}</div>{% endif %}
+  </fieldset>
+
+  {% if section.warnings %}
+  <div class="alert alert--warn">
+    Bu yöntemler {{ section.group.label_tr }} grubunun varsayılanları arasında değil: {{ section.warnings|join(', ') }}. Kayıt yine de yapılabilir.
+  </div>
+  {% endif %}
+</div>

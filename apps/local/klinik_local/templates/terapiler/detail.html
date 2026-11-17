@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ s.client_code }} · Seans #{{ s.session_number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1><code>{{ s.client_code }}</code> · Seans #{{ s.session_number }}</h1>
+  <div class="row">
+    {% if own %}<a class="btn" href="/terapiler/{{ s.id }}/duzenle">Düzenle</a>{% endif %}
+    <a class="btn btn--secondary" href="/terapiler">← Terapiler</a>
+  </div>
+</div>
+
+{% if saved %}<div class="alert" role="status">Kaydedildi.</div>{% endif %}
+
+<section class="card">
+  <dl class="facts">
+    {% if client_name %}<div><dt>Danışan</dt><dd>{{ client_name }}</dd></div>{% endif %}
+    <div><dt>Tarih</dt><dd>{{ s.session_date|datetime_tr }}</dd></div>
+    <div><dt>Süre</dt><dd>{{ s.duration_min }} dk</dd></div>
+    <div><dt>Yaş / grup</dt><dd>{{ s.age_at_session if s.age_at_session is not none else '—' }} · {{ s.age_group_label }}</dd></div>
+    <div><dt>Format</dt><dd>{{ s.format_label }}</dd></div>
+    <div><dt>Yöntem(ler)</dt><dd>
+      {% for m in s.methods %}{{ m.label_tr }}{% if m.is_primary %} ★{% endif %}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}
+    </dd></div>
+    <div><dt>Durum</dt><dd><span class="badge badge--{{ s.status }}">{{ status_labels.get(s.status, s.status) }}</span></dd></div>
+    <div><dt>Terapist</dt><dd>{{ s.therapist_name }}</dd></div>
+    {% if s.next_session_date %}<div><dt>Sonraki seans</dt><dd>{{ s.next_session_date|datetime_tr }}</dd></div>{% endif %}
+  </dl>
+</section>
+
+<section class="card">
+  <h2>Seans notu</h2>
+  {% if notes %}<div class="note-text">{{ notes }}</div>{% else %}<p class="muted">Not girilmemiş.</p>{% endif %}
+  <h2>Ödev</h2>
+  {% if homework %}<div class="note-text">{{ homework }}</div>{% else %}<p class="muted">Ödev yok.</p>{% endif %}
+  <p class="muted small">Bu notların her görüntülenmesi denetim kaydına yazılır.</p>
+</section>
+
+<section class="card">
+  <h2>Son seanslar</h2>
+  <div class="table-wrap">
+    <table class="mini">
+      <thead><tr><th>Tarih</th><th>Seans</th><th>Yaş grubu</th><th>Birincil yöntem</th><th>Format</th><th>Durum</th></tr></thead>
+      <tbody>
+        {% for t in timeline %}
+        <tr{% if t.id == s.id %} class="is-current"{% endif %}>
+          <td><a href="/terapiler/{{ t.id }}">{{ t.session_date|datetime_tr }}</a></td>
+          <td>#{{ t.session_number }}</td>
+          <td>{{ t.age_group_label }}</td>
+          <td>{{ t.primary_method.label_tr if t.primary_method else '—' }}</td>
+          <td>{{ t.format_label }}</td>
+          <td><span class="badge badge--{{ t.status }}">{{ status_labels.get(t.status, t.status) }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if own %}
+<section class="card">
+  <details>
+    <summary class="btn btn--danger btn--small">Seansı sil…</summary>
+    <form class="stack" method="post" action="/terapiler/{{ s.id }}/sil">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p>Seans listeden kaldırılır. Kayıt silinmez, denetim için saklanır.</p>
+      <button class="btn btn--danger" type="submit">Evet, sil</button>
+    </form>
+  </details>
+</section>
+{% endif %}
+{% endblock %}

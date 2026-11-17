@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{% if session_id %}Seansı düzenle{% else %}Yeni Seans{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% if session_id %}Seansı düzenle{% else %}Yeni Seans{% endif %}</h1>
+  <a class="btn btn--secondary" href="{{ '/terapiler/' ~ session_id if session_id else '/terapiler' }}">Vazgeç</a>
+</div>
+
+{% if conflict %}
+<div class="alert alert--warn" role="alert">
+  Bu seans siz düzenlerken değiştirildi (başka bir sekme veya cihaz). Güncel hâlini
+  <a href="/terapiler/{{ session_id }}/duzenle">yeniden açıp</a> değişikliklerinizi tekrar girin.
+</div>
+{% elif errors %}
+<div class="alert alert--error" role="alert">Formda hatalı alanlar var. Lütfen kontrol edin.</div>
+{% endif %}
+
+<form class="card" method="post" action="{{ '/terapiler/' ~ session_id if session_id else '/terapiler' }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if session_id %}
+  <input type="hidden" name="session_id" value="{{ session_id }}">
+  <input type="hidden" name="version" value="{{ values.version }}">
+  <input type="hidden" name="notes_sha" value="{{ values.notes_sha }}">
+  <input type="hidden" name="homework_sha" value="{{ values.homework_sha }}">
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="client_id">Danışan</label>
+      {% if session_id %}
+      <input type="hidden" name="client_id" value="{{ values.client_id }}">
+      <input id="client_id" type="text" value="{{ client.client_code ~ ' · ' ~ client.full_name if client else '' }}" disabled>
+      {% else %}
+      <select id="client_id" name="client_id" required
+              hx-get="/terapiler/form/yontemler" hx-include="[name='client_id'],[name='session_date'],[name='format_code'],[name='method'],[name='primary'],[name='session_id']"
+              hx-target="#method-section" hx-swap="outerHTML" hx-trigger="change">
+        <option value="">— Danışan seçin —</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}"{% if values.client_id == c.id|string %} selected{% endif %}>{{ c.client_code }} · {{ c.full_name }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      {% if errors.client_id %}<div class="field__error">{{ errors.client_id }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="session_date">Tarih / saat</label>
+      <input id="session_date" name="session_date" type="datetime-local" value="{{ values.session_date }}" required
+             hx-get="/terapiler/form/yontemler" hx-include="[name='client_id'],[name='session_date'],[name='format_code'],[name='method'],[name='primary'],[name='session_id']"
+             hx-target="#method-section" hx-swap="outerHTML" hx-trigger="change">
+      {% if errors.session_date %}<div class="field__error">{{ errors.session_date }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="duration_min">Süre (dakika)</label>
+      <input id="duration_min" name="duration_min" type="number" min="10" max="240" step="5" value="{{ values.duration_min }}" required>
+      {% if errors.duration_min %}<div class="field__error">{{ errors.duration_min }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="status">Durum</label>
+      <select id="status" name="status">
+        {% if not session_id %}<option value="">Otomatik (geçmiş: Tamamlandı, gelecek: Planlandı)</option>{% endif %}
+        {% for code, label in statuses %}
+        <option value="{{ code }}"{% if values.status == code %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.status %}<div class="field__error">{{ errors.status }}</div>{% endif %}
+    </div>
+  </div>
+
+  <hr class="divider">
+  {% include "terapiler/_methods.html" %}
+  <hr class="divider">
+
+  <div class="field">
+    <label for="notes">Seans notu</label>
+    <textarea id="notes" name="notes" rows="8" maxlength="20000">{{ values.notes or '' }}</textarea>
+    <div class="muted small">Notlar şifreli saklanır ve yalnızca sizin tarafınızdan görülebilir.</div>
+    {% if errors.notes %}<div class="field__error">{{ errors.notes }}</div>{% endif %}
+  </div>
+  <div class="field">
+    <label for="homework">Ödev</label>
+    <textarea id="homework" name="homework" rows="3" maxlength="20000">{{ values.homework or '' }}</textarea>
+    {% if errors.homework %}<div class="field__error">{{ errors.homework }}</div>{% endif %}
+  </div>
+  <div class="field">
+    <label for="next_session_date">Sonraki seans (isteğe bağlı)</label>
+    <input id="next_session_date" name="next_session_date" type="datetime-local" value="{{ values.next_session_date or '' }}">
+    <div class="muted small">Randevu, Klinik Web takviminden oluşturulur.</div>
+    {% if errors.next_session_date %}<div class="field__error">{{ errors.next_session_date }}</div>{% endif %}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Kaydet</button>
+    <a class="btn btn--secondary" href="{{ '/terapiler/' ~ session_id if session_id else '/terapiler' }}">Vazgeç</a>
+  </div>
+</form>
+{% endblock %}
