@@ -21,8 +21,10 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
+from sqlalchemy import select
 from starlette.datastructures import QueryParams
 
+from klinik_local import tables as t
 from klinik_local.danisanlar.service import ClientNotFound, ClientService, ClientView
 from klinik_local.terapiler.catalog import AgeGroup, Catalog, Method, NoAgeGroupError, load_catalog
 from klinik_local.terapiler.filters import parse_filters
@@ -118,6 +120,13 @@ def selected_methods(form: Any) -> list[dict[str, Any]]:
         codes.remove(primary)
         codes.insert(0, primary)
     return [{"code": code, "is_primary": code == primary} for code in codes]
+
+
+def parse_uuid(value: object) -> UUID | None:
+    try:
+        return UUID(str(value)) if value else None
+    except ValueError:
+        return None
 
 
 def default_session_time() -> str:
@@ -371,8 +380,36 @@ def build_router(
             "methods": [],
             "primary": "",
             "status": "",
+            "appointment_id": "",
         }
-        return await form_page(request, user, values=values)
+        errors: dict[str, str] = {}
+        appointment_id = parse_uuid(request.query_params.get("randevu"))
+        if appointment_id is not None:
+            # Seansı kaydet from the calendar: start from the booked appointment.
+            async with auth.tx(user) as conn:
+                m = t.appointments_mirror
+                appt = (
+                    await conn.execute(
+                        select(m).where(m.c.id == appointment_id, m.c.deleted_at.is_(None))
+                    )
+                ).one_or_none()
+                everyone = await clients.search(conn, status="all") if appt else []
+            if appt is None:
+                errors["appointment_id"] = "Randevu bulunamadı."
+            else:
+                client = next((c for c in everyone if c.client_code == appt.client_code), None)
+                values.update(
+                    client_id=str(client.id) if client else "",
+                    session_date=local_input(appt.starts_at),
+                    duration_min=appt.duration_min,
+                    appointment_id=str(appt.id),
+                    status="planned" if appt.starts_at > now_utc() else "completed",
+                )
+                if client is None:
+                    errors["client_id"] = (
+                        f"{appt.client_code} kodlu danışan bu bilgisayarda kayıtlı değil."
+                    )
+        return await form_page(request, user, values=values, errors=errors)
 
     @router.get("/form/yontemler", response_class=HTMLResponse)
     async def methods_fragment(request: Request, user: CurrentUser = can_write) -> Response:
@@ -410,6 +447,7 @@ def build_router(
             "version": str(form.get("version") or ""),
             "notes_sha": str(form.get("notes_sha") or ""),
             "homework_sha": str(form.get("homework_sha") or ""),
+            "appointment_id": str(form.get("appointment_id") or ""),
         }
 
     def dates_or_errors(values: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
@@ -441,6 +479,7 @@ def build_router(
             "notes": form_text(form, "notes"),
             "homework": form_text(form, "homework"),
             "next_session_date": dates["next_session_date"],
+            "appointment_id": parse_uuid(values["appointment_id"]),
         }
         try:
             data = SessionCreate.model_validate(payload)

@@ -5,7 +5,6 @@ Clients appear only as codes here. Times are entered and shown in Europe/Istanbu
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import urlencode
@@ -23,85 +22,16 @@ from klinik_cloud.takvim.service import (
     AppointmentNotFound,
     AppointmentService,
     BookingConflict,
-    Option,
 )
 from klinik_shared.authkit.service import CurrentUser
 from klinik_shared.authkit.web import AuthKit
+from klinik_shared.calendar import Person, build_grid, first_day, parse_day, span, title_for
 from klinik_shared.enums import AppointmentStatus
 from klinik_shared.labels_tr import STATUS_LABELS
 from klinik_shared.permissions import Permission
 from klinik_shared.timeutil import ISTANBUL, now_utc, to_istanbul
 
-DAY_START = 8
-DAY_END = 21  # exclusive
-DAYS_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
-MONTHS_TR = (
-    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
-)  # fmt: skip
 DURATIONS = (30, 45, 50, 60, 75, 90, 120)
-
-
-# ---------------------------------------------------------------- calendar model
-
-
-@dataclass
-class Column:
-    key: str
-    title: str
-    subtitle: str
-    day: date
-    therapist_id: UUID | None = None
-    is_today: bool = False
-
-
-@dataclass
-class Grid:
-    columns: list[Column]
-    hours: list[int]
-    cells: dict[tuple[int, int], list[Appointment]] = field(default_factory=dict)
-
-    def at(self, column: int, hour: int) -> list[Appointment]:
-        return self.cells.get((column, hour), [])
-
-
-def build_grid(
-    view: str,
-    day: date,
-    appointments: list[Appointment],
-    therapists: list[Option],
-) -> Grid:
-    today = to_istanbul(now_utc()).date()
-    if view == "gun":
-        columns = [
-            Column(str(th.id), th.label, "", day, th.id, day == today) for th in therapists
-        ] or [Column("all", "Randevular", "", day, None, day == today)]
-    else:
-        monday = day - timedelta(days=day.weekday())
-        columns = []
-        for i in range(7):
-            d = monday + timedelta(days=i)
-            columns.append(Column(d.isoformat(), DAYS_TR[i], f"{d:%d.%m}", d, None, d == today))
-
-    hours = set(range(DAY_START, DAY_END))
-    cells: dict[tuple[int, int], list[Appointment]] = {}
-    for appt in appointments:
-        local = to_istanbul(appt.starts_at)
-        for index, column in enumerate(columns):
-            if local.date() != column.day:
-                continue
-            if column.therapist_id is not None and column.therapist_id != appt.therapist_id:
-                continue
-            hours.add(local.hour)
-            cells.setdefault((index, local.hour), []).append(appt)
-    return Grid(columns, sorted(hours), cells)
-
-
-def parse_day(value: str | None) -> date:
-    try:
-        return date.fromisoformat(value) if value else to_istanbul(now_utc()).date()
-    except ValueError:
-        return to_istanbul(now_utc()).date()
 
 
 def parse_uuid(value: object) -> UUID | None:
@@ -118,19 +48,6 @@ def local_start(day: object, clock: object) -> datetime | None:
         )
     except ValueError:
         return None
-
-
-def title_for(view: str, day: date) -> str:
-    if view == "gun":
-        return f"{day.day} {MONTHS_TR[day.month - 1]} {day.year}, {DAYS_TR[day.weekday()]}"
-    monday = day - timedelta(days=day.weekday())
-    sunday = monday + timedelta(days=6)
-    if monday.month == sunday.month:
-        return f"{monday.day}–{sunday.day} {MONTHS_TR[monday.month - 1]} {monday.year}"
-    return (
-        f"{monday.day} {MONTHS_TR[monday.month - 1]} – "
-        f"{sunday.day} {MONTHS_TR[sunday.month - 1]} {sunday.year}"
-    )
 
 
 # ---------------------------------------------------------------- router
@@ -170,18 +87,18 @@ def build_router(
         day = parse_day(params.get("gun"))
         therapist_id = parse_uuid(params.get("terapist"))
         room_id = parse_uuid(params.get("oda"))
-        first = day if view == "gun" else day - timedelta(days=day.weekday())
-        span = 1 if view == "gun" else 7
+        first = first_day(view, day)
+        days = span(view)
         async with auth.tx(user) as conn:
             therapists = await service.therapists(conn)
             rooms = await service.rooms(conn, active_only=False)
             appointments = await service.in_range(
-                conn, first, span, therapist_id=therapist_id, room_id=room_id
+                conn, first, days, therapist_id=therapist_id, room_id=room_id
             )
         shown = [t for t in therapists if therapist_id is None or t.id == therapist_id]
-        grid = build_grid(view, day, appointments, shown)
+        grid = build_grid(view, day, appointments, [Person(t.id, t.label) for t in shown])
         color = {th.id: index % 4 for index, th in enumerate(therapists)}
-        step = timedelta(days=span)
+        step = timedelta(days=days)
 
         def cal_url(**changes: Any) -> str:
             query = {

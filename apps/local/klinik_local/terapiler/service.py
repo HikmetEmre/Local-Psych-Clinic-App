@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from klinik_local import tables as t
 from klinik_local.crypto.fernet import FieldCipher
+from klinik_local.outbox import cloud_status_for, enqueue_outcome
 from klinik_local.terapiler.catalog import AgeGroup, Catalog, Method, NoAgeGroupError, load_catalog
 from klinik_shared.audit import write_audit
 from klinik_shared.authkit.service import CurrentUser
@@ -584,6 +585,9 @@ class SessionService:
             else AppointmentStatus.COMPLETED
         )
         self._require_modality_when_completed(status.value, len(methods))
+        cloud_before = await self._check_appointment(
+            conn, actor, data.appointment_id, client.client_code
+        )
 
         number = (
             await conn.execute(
@@ -627,7 +631,62 @@ class SessionService:
                 "has_homework": bool(data.homework),
             },
         )
+        if data.appointment_id is not None and cloud_before is not None:
+            await enqueue_outcome(
+                conn,
+                appointment_id=data.appointment_id,
+                new_status=cloud_status_for(status.value),
+                prev_status=cloud_before,
+                actor_id=actor.id,
+            )
         return await self._load_item(conn, session_id)
+
+    async def _check_appointment(
+        self,
+        conn: AsyncConnection,
+        actor: CurrentUser,
+        appointment_id: UUID | None,
+        client_code: str,
+    ) -> AppointmentStatus | None:
+        """Validate a link to a cloud appointment; returns the appointment's status."""
+        if appointment_id is None:
+            return None
+        m = t.appointments_mirror
+        row = (
+            await conn.execute(
+                select(m.c.client_code, m.c.therapist_id, m.c.status).where(
+                    m.c.id == appointment_id, m.c.deleted_at.is_(None)
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            raise SessionError("appointment_id", "Randevu bulunamadı.", "unknown_appointment")
+        if row.client_code != client_code:
+            raise SessionError(
+                "appointment_id", "Randevu bu danışana ait değil.", "appointment_client_mismatch"
+            )
+        if row.therapist_id != actor.id:
+            raise SessionError(
+                "appointment_id", "Bu randevu başka bir terapiste ait.", "appointment_not_yours"
+            )
+        if row.status == AppointmentStatus.CANCELLED.value:
+            raise SessionError(
+                "appointment_id", "Bu randevu iptal edilmiş.", "appointment_cancelled"
+            )
+        taken = (
+            await conn.execute(
+                text(
+                    "SELECT 1 FROM therapy_sessions "
+                    "WHERE appointment_id = :id AND deleted_at IS NULL"
+                ),
+                {"id": appointment_id},
+            )
+        ).first()
+        if taken is not None:
+            raise SessionError(
+                "appointment_id", "Bu randevu için zaten bir seans kaydı var.", "appointment_taken"
+            )
+        return AppointmentStatus(row.status)
 
     async def update(
         self, conn: AsyncConnection, actor: CurrentUser, session_id: UUID, data: SessionUpdate
@@ -713,6 +772,14 @@ class SessionService:
         )
         if methods is not None:
             await self._replace_methods(conn, session_id, methods)
+        if row.appointment_id is not None and "status" in changed:
+            await enqueue_outcome(
+                conn,
+                appointment_id=row.appointment_id,
+                new_status=cloud_status_for(status),
+                prev_status=cloud_status_for(row.status),
+                actor_id=actor.id,
+            )
         await write_audit(
             conn,
             t.audit_log,
@@ -733,11 +800,20 @@ class SessionService:
                 update(s)
                 .where(s.c.id == session_id, s.c.deleted_at.is_(None), s.c.therapist_id == actor.id)
                 .values(deleted_at=now_utc(), updated_by=actor.id, version=s.c.version + 1)
-                .returning(s.c.id)
+                .returning(s.c.id, s.c.appointment_id, s.c.status)
             )
         ).first()
         if deleted is None:
             raise SessionNotFound
+        if deleted.appointment_id is not None:
+            # The record of the outcome is gone, so the booking goes back to planned.
+            await enqueue_outcome(
+                conn,
+                appointment_id=deleted.appointment_id,
+                new_status=AppointmentStatus.PLANNED,
+                prev_status=cloud_status_for(deleted.status),
+                actor_id=actor.id,
+            )
         await write_audit(
             conn,
             t.audit_log,

@@ -16,6 +16,8 @@ from klinik_local.config import Settings, get_settings
 from klinik_local.crypto.fernet import FieldCipher, parse_keys
 from klinik_local.danisanlar.routes import build_router as build_clients_router
 from klinik_local.danisanlar.service import ClientService
+from klinik_local.takvim import build_router as build_schedule_router
+from klinik_local.takvim import sync_banner
 from klinik_local.terapiler.api import build_api_router as build_therapy_api
 from klinik_local.terapiler.routes import build_router as build_therapy_pages
 from klinik_local.terapiler.service import SessionService
@@ -35,8 +37,10 @@ TIER = Tier(
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 NAV = (
+    NavItem("Takvim", "/takvim", Permission.SCHEDULE_READ_ALL.value),
     NavItem("Terapiler", "/terapiler", Permission.SESSIONS_READ_OWN.value),
     NavItem("Danışanlar", "/danisanlar", Permission.CLIENTS_READ.value),
+    NavItem("Çakışmalar", "/cakismalar", Permission.SCHEDULE_READ_ALL.value),
     NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
 )
 
@@ -94,13 +98,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def home(request: Request, user: CurrentUser = logged_in) -> Response:
-        return templates.TemplateResponse(request, "home.html", {})
+        async with auth.tx(user) as conn:
+            banner = await sync_banner(conn)
+        return templates.TemplateResponse(request, "home.html", {"sync_banner": banner})
 
     sessions = SessionService(cipher)
     app.state.sessions = sessions
     app.include_router(build_therapy_api(auth, sessions))
     app.include_router(build_therapy_pages(auth, sessions, clients, templates))
     app.include_router(build_clients_router(auth, clients, templates))
+    app.include_router(build_schedule_router(auth, clients, templates, settings.web_base_url))
     app.include_router(build_users_router(auth, templates))
     app.include_router(build_catalog_router(auth, templates))
     return app

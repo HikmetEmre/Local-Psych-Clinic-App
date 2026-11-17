@@ -135,3 +135,58 @@ session_methods = Table(
     Column("therapy_method_id", Integer, ForeignKey("therapy_methods.id"), primary_key=True),
     Column("is_primary", Boolean, nullable=False),
 )
+
+rooms_mirror = Table(
+    "rooms_mirror",
+    metadata,
+    Column("id", _uuid, primary_key=True),
+    Column("internal_label", Text, nullable=False),
+    Column("is_active", Boolean, nullable=False),
+    Column("sort_order", Integer, nullable=False),
+    Column("change_seq", BigInteger, nullable=False),
+    Column("synced_at", _tz, nullable=False, server_default=text("now()")),
+)
+
+appointments_mirror = Table(
+    "appointments_mirror",
+    metadata,
+    Column("id", _uuid, primary_key=True),
+    Column("client_code", Text, nullable=False),
+    Column("therapist_id", _uuid, nullable=False),
+    Column("room_id", _uuid, nullable=False),
+    Column("starts_at", _tz, nullable=False),
+    Column("duration_min", Integer, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("change_seq", BigInteger, nullable=False),
+    Column("deleted_at", _tz),
+    Column("updated_at", _tz, nullable=False),
+    Column("synced_at", _tz, nullable=False, server_default=text("now()")),
+)
+
+sync_state = Table(
+    "sync_state",
+    metadata,
+    Column("key", Text, primary_key=True),
+    Column("value", Text, nullable=False),
+    Column("updated_at", _tz, nullable=False, server_default=text("now()")),
+)
+
+sync_conflicts = Table(
+    "sync_conflicts",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("outbox_item_id", _uuid),
+    Column("kind", Text, nullable=False),
+    Column("appointment_id", _uuid),
+    Column("client_code", Text),
+    Column("reason_code", Text, nullable=False),
+    Column("proposed_status", Text),
+    Column("cloud_status", Text),
+    Column("author_id", _uuid),
+    Column("status", Text, nullable=False, server_default=text("'open'")),
+    Column("resolution", Text),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("resolved_by", _uuid),
+    Column("resolved_at", _tz),
+)

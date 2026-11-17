@@ -3,6 +3,7 @@
 <div class="page-head">
   <h1>Hoş geldiniz, {{ user.display_name }}</h1>
 </div>
+{% if sync_banner %}<div class="alert alert--warn" role="status">{{ sync_banner }}</div>{% endif %}
 <div class="tiles">
   {% for item in nav %}
   {% if not item.permission or item.permission in user.permissions %}

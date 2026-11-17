@@ -2,7 +2,7 @@
 name = "klinik-sync"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["klinik-shared"]
+dependencies = ["klinik-shared", "httpx>=0.27"]
 
 [tool.uv.sources]
 klinik-shared = { workspace = true }

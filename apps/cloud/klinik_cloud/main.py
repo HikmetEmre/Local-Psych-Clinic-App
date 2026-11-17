@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
+from klinik_cloud import sync_api
 from klinik_cloud import tables as t
 from klinik_cloud.ayarlar.odalar import build_router as build_rooms_router
 from klinik_cloud.cakismalar.routes import build_router as build_conflicts_router
@@ -90,4 +91,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_conflicts_router(auth, appointments, templates))
     app.include_router(build_users_router(auth, templates))
     app.include_router(build_rooms_router(auth, appointments, templates))
+    sync_api.install(app, app.state.engine)
     return app

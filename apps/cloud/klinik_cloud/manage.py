@@ -3,6 +3,7 @@
     python -m klinik_cloud.manage set-role-passwords
     python -m klinik_cloud.manage bootstrap-users users.toml     (or "-" for stdin)
     python -m klinik_cloud.manage generate-keys
+    python -m klinik_cloud.manage create-sync-token
 
 The first two connect with CLOUD_MIGRATION_DATABASE_URL (the owner role).
 Use the same users.toml as for the office so that user ids match.
@@ -20,6 +21,7 @@ from cryptography.fernet import Fernet, MultiFernet
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from klinik_cloud import tables as t
+from klinik_cloud.sync_api import create_sync_token, register_sync_token
 from klinik_shared.authkit.admin import bootstrap_users, parse_users_file, set_role_passwords
 from klinik_shared.authkit.service import AuthStore
 
@@ -55,6 +57,23 @@ async def _main(args: argparse.Namespace) -> int:
             for role in await set_role_passwords(engine, passwords):
                 print(f"password set: {role}")
             return 0
+        if args.command == "create-sync-token":
+            async with engine.begin() as conn:
+                token = await create_sync_token(conn)
+            print(f"SYNC_CLOUD_TOKEN={token}")
+            print(
+                "# Shown once. Put it in the office laptop's env file; it is stored only as a hash."
+            )
+            return 0
+        if args.command == "register-sync-token":
+            # Development only: accept a token given in the environment.
+            token = os.environ.get("SYNC_CLOUD_TOKEN", "")
+            if len(token) < 32:
+                raise SystemExit("SYNC_CLOUD_TOKEN is missing or too short")
+            async with engine.begin() as conn:
+                await register_sync_token(conn, token)
+            print("sync token registered")
+            return 0
         if args.command == "bootstrap-users":
             raw = (
                 sys.stdin.buffer.read()
@@ -79,6 +98,8 @@ def main() -> None:
     bootstrap = sub.add_parser("bootstrap-users", help="create users from a TOML file")
     bootstrap.add_argument("file", help='path to the TOML file, or "-" for stdin')
     sub.add_parser("generate-keys", help="print a new auth Fernet key")
+    sub.add_parser("create-sync-token", help="create a credential for the office sync worker")
+    sub.add_parser("register-sync-token", help="(development) register SYNC_CLOUD_TOKEN")
     sys.exit(asyncio.run(_main(parser.parse_args())))
 
 

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Fernet key protecting TOTP secrets at rest.
     auth_fernet_key: str | None = None
 
+    # Klinik Web address, for links to the booking calendar.
+    web_base_url: str | None = None
+
     cookie_secure: bool = True
     idle_timeout_minutes: int = 30
     session_max_hours: int = 12

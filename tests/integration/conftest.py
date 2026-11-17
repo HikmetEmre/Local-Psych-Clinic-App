@@ -7,7 +7,7 @@ Docker is a failure, so these tests can never be skipped silently there.
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 
@@ -42,15 +42,15 @@ def postgres_server() -> Iterator[str]:
 
 
 @pytest.fixture
-def fresh_database(postgres_server: str) -> Iterator[str]:
-    """URL of a newly created, empty database (dropped afterwards)."""
+def database_factory(postgres_server: str) -> Iterator[Callable[[], str]]:
+    """Creates empty databases on demand; all of them are dropped after the test."""
     import asyncio
     import uuid
 
     import asyncpg
 
-    name = f"t_{uuid.uuid4().hex[:12]}"
     admin_dsn = postgres_server.replace("+asyncpg", "") + "/test"
+    created: list[str] = []
 
     async def run(sql: str) -> None:
         conn = await asyncpg.connect(admin_dsn)
@@ -59,11 +59,21 @@ def fresh_database(postgres_server: str) -> Iterator[str]:
         finally:
             await conn.close()
 
-    asyncio.run(run(f'CREATE DATABASE "{name}"'))
-    try:
-        yield f"{postgres_server}/{name}"
-    finally:
+    def create() -> str:
+        name = f"t_{uuid.uuid4().hex[:12]}"
+        asyncio.run(run(f'CREATE DATABASE "{name}"'))
+        created.append(name)
+        return f"{postgres_server}/{name}"
+
+    yield create
+    for name in created:
         asyncio.run(run(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+@pytest.fixture
+def fresh_database(database_factory: Callable[[], str]) -> str:
+    """URL of a newly created, empty database (dropped afterwards)."""
+    return database_factory()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -83,8 +93,8 @@ def local_db(fresh_database: str) -> object:
 
 
 @pytest.fixture
-def cloud_db(fresh_database: str) -> object:
-    """A migrated cloud-tier database (schema "app") with the cloud_app role ready."""
+def cloud_db(database_factory: Callable[[], str]) -> object:
+    """A migrated cloud-tier database (schema "app"), separate from ``local_db``."""
     from support.cloud import prepare_cloud_db
 
-    return prepare_cloud_db(fresh_database)
+    return prepare_cloud_db(database_factory())

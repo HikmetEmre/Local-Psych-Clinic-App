@@ -30,6 +30,7 @@ DENYLIST_EXCEPTIONS = {
     ("users", "display_name"),  # staff display name ("Uzm. Psk. A. Y.")
     ("login_attempts", "username_key"),  # sha256 of the typed username
     ("conflicts", "reason_code"),  # machine code, CHECK ^[a-z_]{2,40}$
+    ("sync_inbox", "reason_code"),
     ("client_codes", "assigned_therapist_id"),  # a user id
     ("appointments", "therapist_id"),
     ("user_settings", "default_room_id"),
@@ -64,6 +65,11 @@ TEXTUAL_ALLOWLIST = {
     ("conflicts", "reason_code"): "code, CHECK",
     ("conflicts", "status"): "enum",
     ("conflicts", "resolution"): "enum",
+    ("service_tokens", "token_hash"): "sha256",
+    ("service_tokens", "scope"): "enum",
+    ("sync_inbox", "kind"): "enum",
+    ("sync_inbox", "result"): "enum",
+    ("sync_inbox", "reason_code"): "code, CHECK",
 }
 
 TEXTUAL_TYPES = ("text", "character varying", "character", "json", "jsonb", "bytea", "USER-DEFINED")
@@ -141,7 +147,7 @@ def test_every_table_has_row_level_security(cloud_db: CloudDb) -> None:
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = 'app' AND c.relkind = 'r' AND c.relname <> 'alembic_version'",
     )
-    assert len(rows) == 11
+    assert len(rows) == 13
     assert all(r["relrowsecurity"] and r["relforcerowsecurity"] for r in rows)
 
 

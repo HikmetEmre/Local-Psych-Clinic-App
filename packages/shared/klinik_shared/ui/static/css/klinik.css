@@ -1279,3 +1279,16 @@ tbody tr:hover .cal__cell {
   min-width: 140px;
   font-weight: 600;
 }
+
+.appt__name {
+  display: block;
+  font-weight: 600;
+}
+
+.appt__action {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c);
+}

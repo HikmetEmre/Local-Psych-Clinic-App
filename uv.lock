@@ -919,11 +919,15 @@ name = "klinik-sync"
 version = "0.1.0"
 source = { editable = "apps/sync" }
 dependencies = [
+    { name = "httpx" },
     { name = "klinik-shared" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "klinik-shared", editable = "packages/shared" }]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "klinik-shared", editable = "packages/shared" },
+]
 
 [[package]]
 name = "librt"

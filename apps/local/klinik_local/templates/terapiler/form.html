@@ -17,6 +17,11 @@
 
 <form class="card" method="post" action="{{ '/terapiler/' ~ session_id if session_id else '/terapiler' }}" autocomplete="off">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if values.appointment_id %}
+  <input type="hidden" name="appointment_id" value="{{ values.appointment_id }}">
+  <div class="alert" role="status">Bu seans takvimdeki randevuya bağlanacak. Tamamlandı veya Gelmedi olarak kaydederseniz randevunun durumu bulutta da güncellenir.</div>
+  {% if errors.appointment_id %}<div class="field__error">{{ errors.appointment_id }}</div>{% endif %}
+  {% endif %}
   {% if session_id %}
   <input type="hidden" name="session_id" value="{{ session_id }}">
   <input type="hidden" name="version" value="{{ values.version }}">

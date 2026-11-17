@@ -32,11 +32,15 @@ services:
     command:
       - sh
       - -c
-      - alembic -n cloud upgrade head && python -m klinik_cloud.manage set-role-passwords
+      - >-
+        alembic -n cloud upgrade head &&
+        python -m klinik_cloud.manage set-role-passwords &&
+        python -m klinik_cloud.manage register-sync-token
     environment:
       CLOUD_MIGRATION_DATABASE_URL: postgresql+asyncpg://cloud_migrator:${CLOUD_DB_PASSWORD}@cloud-db:5432/klinik_cloud
       CLOUD_APP_DB_PASSWORD: ${CLOUD_APP_DB_PASSWORD:?}
       CLOUD_AUTH_FERNET_KEY: ${CLOUD_AUTH_FERNET_KEY:?}
+      SYNC_CLOUD_TOKEN: ${SYNC_CLOUD_TOKEN:?}
     depends_on:
       cloud-db: { condition: service_healthy }
 

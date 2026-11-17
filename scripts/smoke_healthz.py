@@ -26,7 +26,7 @@ def main() -> int:
             print(f"FAIL {service}: {exc}")
             failed = True
             continue
-        ok = body == {"status": "ok", "service": service, "db": "ok"}
+        ok = (body.get("status"), body.get("service"), body.get("db")) == ("ok", service, "ok")
         print(f"{'ok  ' if ok else 'FAIL'} {service}: {body}")
         failed |= not ok
     return 1 if failed else 0

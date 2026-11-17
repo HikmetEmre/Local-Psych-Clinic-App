@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Table,
@@ -103,4 +104,25 @@ conflicts = Table(
     Column("created_at", _tz, nullable=False, server_default=text("now()")),
     Column("resolved_by", _uuid, ForeignKey("app.users.id")),
     Column("resolved_at", _tz),
+)
+
+service_tokens = Table(
+    "service_tokens",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=_gen_uuid),
+    Column("token_hash", LargeBinary, nullable=False, unique=True),
+    Column("scope", Text, nullable=False),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("last_used_at", _tz),
+    Column("revoked_at", _tz),
+)
+
+sync_inbox = Table(
+    "sync_inbox",
+    metadata,
+    Column("item_id", _uuid, primary_key=True),
+    Column("kind", Text, nullable=False),
+    Column("received_at", _tz, nullable=False, server_default=text("now()")),
+    Column("result", Text, nullable=False),
+    Column("reason_code", Text),
 )

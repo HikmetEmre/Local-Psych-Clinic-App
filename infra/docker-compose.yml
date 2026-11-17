@@ -70,6 +70,7 @@ services:
       LOCAL_FERNET_KEYS: ${LOCAL_FERNET_KEYS:?set LOCAL_FERNET_KEYS in the env file}
       LOCAL_AUTH_FERNET_KEY: ${LOCAL_AUTH_FERNET_KEY}
       LOCAL_COOKIE_SECURE: ${LOCAL_COOKIE_SECURE:-true}
+      LOCAL_WEB_BASE_URL: ${LOCAL_WEB_BASE_URL:-}
     ports:
       - "127.0.0.1:8002:8000"
     depends_on:
@@ -84,6 +85,7 @@ services:
     environment:
       SYNC_LOCAL_DATABASE_URL: postgresql+asyncpg://kasa_sync:${LOCAL_SYNC_DB_PASSWORD}@local-db:5432/kasa
       SYNC_CLOUD_BASE_URL: ${SYNC_CLOUD_BASE_URL:?set SYNC_CLOUD_BASE_URL in the env file}
+      SYNC_CLOUD_TOKEN: ${SYNC_CLOUD_TOKEN:?set SYNC_CLOUD_TOKEN in the env file}
     depends_on:
       local-migrate: { condition: service_completed_successfully }
     healthcheck: *http-healthcheck
