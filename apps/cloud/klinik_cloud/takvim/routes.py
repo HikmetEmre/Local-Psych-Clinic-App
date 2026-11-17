@@ -6,6 +6,7 @@ Clients appear only as codes here. Times are entered and shown in Europe/Istanbu
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -15,6 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
+from klinik_cloud.gelir.service import VOID_REASONS, IncomeService, format_try
 from klinik_cloud.takvim.service import (
     Appointment,
     AppointmentError,
@@ -27,7 +29,7 @@ from klinik_shared.authkit.service import CurrentUser
 from klinik_shared.authkit.web import AuthKit
 from klinik_shared.calendar import Person, build_grid, first_day, parse_day, span, title_for
 from klinik_shared.enums import AppointmentStatus
-from klinik_shared.labels_tr import STATUS_LABELS
+from klinik_shared.labels_tr import PAYMENT_METHOD_LABELS, STATUS_LABELS
 from klinik_shared.permissions import Permission
 from klinik_shared.timeutil import ISTANBUL, now_utc, to_istanbul
 
@@ -54,7 +56,10 @@ def local_start(day: object, clock: object) -> datetime | None:
 
 
 def build_router(
-    auth: AuthKit, service: AppointmentService, templates: Jinja2Templates
+    auth: AuthKit,
+    service: AppointmentService,
+    templates: Jinja2Templates,
+    income: IncomeService,
 ) -> APIRouter:
     router = APIRouter(include_in_schema=False)
     can_read = Depends(auth.require(Permission.SCHEDULE_READ_ALL))
@@ -156,6 +161,7 @@ def build_router(
             therapists = await service.therapists(conn)
             rooms = await service.rooms(conn)
             codes = await service.client_codes(conn)
+            payments = await income.for_appointment(conn, appointment.id) if appointment else []
         return render(
             request,
             "takvim/form.html",
@@ -169,6 +175,17 @@ def build_router(
                 "durations": DURATIONS,
                 "statuses": [(s.value, STATUS_LABELS[s.value]) for s in AppointmentStatus],
                 "conflict": conflict,
+                "payments": payments,
+                "paid_total": sum((p.amount for p in payments if not p.voided), Decimal("0")),
+                "can_pay": user.has(Permission.PAYMENTS_WRITE),
+                "money": format_try,
+                "method_labels": PAYMENT_METHOD_LABELS,
+                "void_reasons": VOID_REASONS,
+                "payment_notice": {"1": "Ödeme kaydedildi.", "iptal": "Ödeme iptal edildi."}.get(
+                    request.query_params.get("odeme", "")
+                ),
+                "payment_error": request.query_params.get("odeme_hatasi"),
+                "today": to_istanbul(now_utc()).date().isoformat(),
                 "conflict_fields": {
                     "starts_at": "Tarih / saat",
                     "duration_min": "Süre",

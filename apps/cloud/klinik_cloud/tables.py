@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     MetaData,
+    Numeric,
     String,
     Table,
     Text,
@@ -157,4 +158,21 @@ push_subscriptions = Table(
     Column("created_at", _tz, nullable=False, server_default=text("now()")),
     Column("last_success_at", _tz),
     Column("failure_count", Integer, nullable=False, server_default=text("0")),
+)
+
+payments = Table(
+    "payments",
+    metadata,
+    Column("id", _uuid, primary_key=True, server_default=_gen_uuid),
+    Column("appointment_id", _uuid, nullable=False),
+    Column("client_code", Text, nullable=False),
+    Column("amount", Numeric(10, 2), nullable=False),
+    Column("currency", Text, nullable=False, server_default=text("'TRY'")),
+    Column("method", Text, nullable=False),
+    Column("paid_at", _tz, nullable=False),
+    Column("recorded_by", _uuid, ForeignKey("app.users.id"), nullable=False),
+    Column("created_at", _tz, nullable=False, server_default=text("now()")),
+    Column("voided_at", _tz),
+    Column("voided_by", _uuid, ForeignKey("app.users.id")),
+    Column("void_reason", Text),
 )

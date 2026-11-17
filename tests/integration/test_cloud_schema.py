@@ -30,6 +30,8 @@ DENYLIST_EXCEPTIONS = {
     ("users", "display_name"),  # staff display name ("Uzm. Psk. A. Y.")
     ("login_attempts", "username_key"),  # sha256 of the typed username
     ("conflicts", "reason_code"),  # machine code, CHECK ^[a-z_]{2,40}$
+    ("payments", "void_reason"),  # enum: entry_error / refund / duplicate
+    ("payments", "method"),  # PAYMENT method: cash / card / transfer (CHECK), not therapy
     ("sync_inbox", "reason_code"),
     ("client_codes", "assigned_therapist_id"),  # a user id
     ("appointments", "therapist_id"),
@@ -77,6 +79,10 @@ TEXTUAL_ALLOWLIST = {
     ("push_subscriptions", "endpoint"): "browser push-service URL, CHECK https + length",
     ("push_subscriptions", "p256dh"): "browser public key",
     ("push_subscriptions", "auth"): "browser auth secret",
+    ("payments", "client_code"): "DN-YYYY-NNNN, CHECK + FK",
+    ("payments", "currency"): "enum",
+    ("payments", "method"): "enum",
+    ("payments", "void_reason"): "enum",
 }
 
 TEXTUAL_TYPES = ("text", "character varying", "character", "json", "jsonb", "bytea", "USER-DEFINED")
@@ -154,7 +160,7 @@ def test_every_table_has_row_level_security(cloud_db: CloudDb) -> None:
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = 'app' AND c.relkind = 'r' AND c.relname <> 'alembic_version'",
     )
-    assert len(rows) == 15
+    assert len(rows) == 16
     assert all(r["relrowsecurity"] and r["relforcerowsecurity"] for r in rows)
 
 

@@ -503,6 +503,11 @@ def build_router(
             except SessionNotFound:
                 return not_found(request)
             timeline = await sessions.timeline(conn, found.item.client_id)
+            candidates = (
+                await sessions.link_candidates(conn, user, session_id)
+                if found.item.appointment_id is None and found.item.therapist_id == user.id
+                else []
+            )
             client_name = None
             if user.has(Permission.CLIENTS_READ):
                 try:
@@ -521,6 +526,8 @@ def build_router(
                 "own": found.item.therapist_id == user.id
                 and user.has(Permission.SESSIONS_WRITE_OWN),
                 "saved": request.query_params.get("kaydedildi") == "1",
+                "candidates": candidates,
+                "link_error": request.query_params.get("baglanti_hatasi"),
             },
         )
 
@@ -598,6 +605,23 @@ def build_router(
                 status=409 if conflict else 422,
                 conflict=conflict,
             )
+        return RedirectResponse(f"/terapiler/{session_id}?kaydedildi=1", status_code=303)
+
+    @router.post("/{session_id}/bagla")
+    async def link_session(
+        request: Request, session_id: UUID, user: CurrentUser = can_write
+    ) -> Response:
+        appointment_id = parse_uuid((await request.form()).get("appointment_id"))
+        if appointment_id is None:
+            return RedirectResponse(f"/terapiler/{session_id}", status_code=303)
+        try:
+            async with auth.tx(user) as conn:
+                await sessions.link_appointment(conn, user, session_id, appointment_id)
+        except SessionNotFound:
+            return not_found(request)
+        except SessionError as exc:
+            query = urlencode({"baglanti_hatasi": exc.message})
+            return RedirectResponse(f"/terapiler/{session_id}?{query}", status_code=303)
         return RedirectResponse(f"/terapiler/{session_id}?kaydedildi=1", status_code=303)
 
     @router.post("/{session_id}/sil")

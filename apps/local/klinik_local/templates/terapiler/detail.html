@@ -56,6 +56,25 @@
   </div>
 </section>
 
+{% if own and not s.appointment_id %}
+<section class="card stack">
+  <h2>Randevuya bağla</h2>
+  {% if link_error %}<div class="alert alert--error" role="alert">{{ link_error }}</div>{% endif %}
+  {% if candidates %}
+  <p class="muted">Randevusuz yapılan bir seans sonradan oluşturulan randevuya bağlanabilir (ör. ödeme girilebilmesi için).</p>
+  <form class="inline-form" method="post" action="/terapiler/{{ s.id }}/bagla">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <select name="appointment_id" aria-label="Randevu" required>
+      {% for c in candidates %}<option value="{{ c.id }}">{{ c.starts_at|datetime_tr }} · {{ c.duration_min }} dk · {{ status_labels.get(c.status, c.status) }}</option>{% endfor %}
+    </select>
+    <button class="btn btn--small" type="submit">Bağla</button>
+  </form>
+  {% else %}
+  <p class="muted">Bu seans bir randevuya bağlı değil. Ödeme girilecekse önce Klinik Web'de bu danışan için randevu oluşturun; eşitlendikten sonra burada görünür.</p>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if own %}
 <section class="card">
   <details>

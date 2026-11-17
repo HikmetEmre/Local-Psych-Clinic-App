@@ -11,6 +11,7 @@ import json
 from collections.abc import Callable, Coroutine, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -650,3 +651,49 @@ def test_session_link_rules(setup: Setup) -> None:
         fetch(s.local, "SELECT payload FROM sync_outbox ORDER BY seq")[-1]["payload"]
     )
     assert "Elif" not in payload and NOTE not in payload
+
+
+# ---------------------------------------------------------------- walk-in, then paid
+
+
+def test_walk_in_session_linked_later_and_paid(setup: Setup) -> None:
+    """A session happens without a booking; it is booked afterwards, linked, and paid."""
+    s = setup
+    code = new_client(s)
+    s.push()
+    client_id = scalar(s.local, "SELECT id FROM clients")
+    response = s.kasa.post(
+        "/terapiler",
+        {
+            "client_id": str(client_id),
+            "session_date": f"{DAY.isoformat()}T14:00",
+            "duration_min": "50",
+            "format_code": "individual",
+            "method": ["play_therapy"],
+            "primary": "play_therapy",
+            "status": "completed",
+        },
+    )
+    session = response.headers["location"].split("/")[2].split("?")[0]
+    assert "Randevuya bağla" in s.kasa.get(f"/terapiler/{session}").text
+    assert outbox_states(s) == ["sent"]  # a walk-in alone tells the cloud nothing
+
+    appointment = book(s, code)
+    s.pull()
+    detail = s.kasa.get(f"/terapiler/{session}").text
+    assert f'value="{appointment}"' in detail
+    linked = s.kasa.post(f"/terapiler/{session}/bagla", {"appointment_id": str(appointment)})
+    assert linked.status_code == 303 and "kaydedildi=1" in linked.headers["location"]
+    s.push()
+    assert cloud_status(s, appointment) == "completed"
+
+    # Linking twice is refused.
+    again = s.kasa.post(f"/terapiler/{session}/bagla", {"appointment_id": str(appointment)})
+    assert "baglanti_hatasi" in again.headers["location"]
+
+    paid = s.web.post(
+        "/odemeler",
+        {"appointment_id": str(appointment), "amount": "1.200", "method": "card", "paid_on": ""},
+    )
+    assert paid.status_code == 303
+    assert scalar(s.cloud, "SELECT amount FROM payments") == Decimal("1200.00")  # type: ignore[arg-type]

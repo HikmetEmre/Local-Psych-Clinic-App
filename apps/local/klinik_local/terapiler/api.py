@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, ConfigDict
 
 from klinik_local.terapiler.catalog import Method, MethodChoices, load_catalog
 from klinik_local.terapiler.filters import parse_filters
@@ -143,6 +144,21 @@ def build_api_router(auth: AuthKit, sessions: SessionService) -> APIRouter:
         except SessionNotFound:
             return no_store(NOT_FOUND, 404)
         return Response(status_code=204)
+
+    class LinkIn(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        appointment_id: UUID
+
+    @router.post("/therapy/sessions/{session_id}/link-appointment")
+    async def link(session_id: UUID, data: LinkIn, user: CurrentUser = can_write) -> Response:
+        try:
+            async with auth.tx(user) as conn:
+                item = await sessions.link_appointment(conn, user, session_id, data.appointment_id)
+        except SessionError as exc:
+            return error_response(exc)
+        except SessionNotFound:
+            return no_store(NOT_FOUND, 404)
+        return no_store(item.to_json())
 
     @router.get("/clients/{client_id}/sessions")
     async def timeline(client_id: UUID, limit: int = 10, user: CurrentUser = can_read) -> Response:

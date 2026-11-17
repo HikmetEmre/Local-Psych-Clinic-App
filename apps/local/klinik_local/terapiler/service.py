@@ -823,6 +823,76 @@ class SessionService:
             entity_id=session_id,
         )
 
+    async def link_candidates(
+        self, conn: AsyncConnection, actor: CurrentUser, session_id: UUID
+    ) -> list[Any]:
+        """The therapist's own bookings for this client, near the session date, still free."""
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT m.id, m.starts_at, m.duration_min, m.status FROM therapy_sessions s "
+                    "JOIN clients c ON c.id = s.client_id "
+                    "JOIN appointments_mirror m ON m.client_code = c.client_code "
+                    "WHERE s.id = :sid AND s.appointment_id IS NULL AND s.deleted_at IS NULL "
+                    "AND m.therapist_id = :me AND m.deleted_at IS NULL "
+                    "AND m.status <> 'cancelled' "
+                    "AND m.starts_at BETWEEN s.session_date - interval '14 days' "
+                    "AND s.session_date + interval '14 days' "
+                    "AND NOT EXISTS (SELECT 1 FROM therapy_sessions o "
+                    "  WHERE o.appointment_id = m.id AND o.deleted_at IS NULL) "
+                    "ORDER BY abs(extract(epoch FROM m.starts_at - s.session_date))"
+                ),
+                {"sid": session_id, "me": actor.id},
+            )
+        ).all()
+        return list(rows)
+
+    async def link_appointment(
+        self, conn: AsyncConnection, actor: CurrentUser, session_id: UUID, appointment_id: UUID
+    ) -> SessionItem:
+        """Attach a walk-in session to a booking made afterwards (e.g. so it can be paid)."""
+        s = t.therapy_sessions
+        row = (
+            await conn.execute(
+                select(s).where(s.c.id == session_id, s.c.deleted_at.is_(None)).with_for_update()
+            )
+        ).one_or_none()
+        if row is None or row.therapist_id != actor.id:
+            raise SessionNotFound
+        if row.appointment_id is not None:
+            raise SessionError(
+                "appointment_id", "Bu seans zaten bir randevuya bağlı.", "already_linked"
+            )
+        code = (
+            await conn.execute(
+                select(t.clients.c.client_code).where(t.clients.c.id == row.client_id)
+            )
+        ).scalar_one()
+        cloud_before = await self._check_appointment(conn, actor, appointment_id, code)
+        await conn.execute(
+            update(s)
+            .where(s.c.id == session_id)
+            .values(appointment_id=appointment_id, updated_by=actor.id, version=s.c.version + 1)
+        )
+        if cloud_before is not None:
+            await enqueue_outcome(
+                conn,
+                appointment_id=appointment_id,
+                new_status=cloud_status_for(row.status),
+                prev_status=cloud_before,
+                actor_id=actor.id,
+            )
+        await write_audit(
+            conn,
+            t.audit_log,
+            action="session_linked",
+            actor_id=actor.id,
+            entity_type="therapy_session",
+            entity_id=session_id,
+            detail={"appointment_id": str(appointment_id)},
+        )
+        return await self._load_item(conn, session_id)
+
     # ------------------------------------------------------------ UI helpers
 
     @staticmethod

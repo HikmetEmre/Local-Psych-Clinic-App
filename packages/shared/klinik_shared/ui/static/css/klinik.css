@@ -1385,3 +1385,74 @@ tbody tr:hover .cal__cell {
   background: var(--green-700);
   vertical-align: middle;
 }
+
+/* ---------- Gelir ---------- */
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+tr.is-voided td {
+  color: var(--text-muted);
+}
+
+tr.is-voided td.num {
+  text-decoration: line-through;
+}
+
+details.void[open] > form {
+  margin-top: 8px;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.kpi {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.kpi__label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.kpi__value {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-serif);
+  font-size: 1.6rem;
+  color: var(--green-800);
+  font-variant-numeric: tabular-nums;
+}
+
+meter.bar {
+  width: 100%;
+  min-width: 80px;
+  height: 12px;
+}
+
+meter.bar::-webkit-meter-bar {
+  background: var(--beige-100);
+  border: 0;
+  border-radius: 999px;
+}
+
+meter.bar::-webkit-meter-optimum-value {
+  background: var(--green-500);
+  border-radius: 999px;
+}
+
+meter.bar::-moz-meter-bar {
+  background: var(--green-500);
+  border-radius: 999px;
+}

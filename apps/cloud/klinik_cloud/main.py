@@ -17,6 +17,8 @@ from klinik_cloud.bildirimler.routes import build_router as build_notifications_
 from klinik_cloud.cakismalar.routes import build_router as build_conflicts_router
 from klinik_cloud.cakismalar.routes import describe
 from klinik_cloud.config import Settings, get_settings
+from klinik_cloud.gelir.routes import build_router as build_income_router
+from klinik_cloud.gelir.service import IncomeService
 from klinik_cloud.takvim.routes import build_router as build_calendar_router
 from klinik_cloud.takvim.service import AppointmentService
 from klinik_shared.authkit.admin import build_users_router
@@ -37,6 +39,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 NAV = (
     NavItem("Takvim", "/takvim", Permission.SCHEDULE_READ_ALL.value),
+    NavItem("Gelir", "/gelir", Permission.INCOME_READ_OWN.value),
     NavItem("Çakışmalar", "/cakismalar", Permission.SCHEDULE_READ_ALL.value),
     NavItem("Bildirimler", "/bildirimler"),
     NavItem("Ayarlar", "/ayarlar", Permission.ADMIN_USERS.value),
@@ -107,8 +110,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.background.append(lambda: push_loop(engine, sender))
 
     appointments = AppointmentService()
+    income = IncomeService()
     app.state.appointments = appointments
-    app.include_router(build_calendar_router(auth, appointments, templates))
+    app.include_router(build_calendar_router(auth, appointments, templates, income))
+    app.include_router(build_income_router(auth, income, appointments, templates))
     app.include_router(build_conflicts_router(auth, appointments, templates))
     app.include_router(build_users_router(auth, templates))
     app.include_router(build_rooms_router(auth, appointments, templates))
