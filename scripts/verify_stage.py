@@ -59,7 +59,7 @@ def main(stage: Path) -> None:
     def staged(*args: str, check_rc: bool = True) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(
             [str(py), "-m", "klinik_local.service", "--env", str(env_file), *args],
-            capture_output=True, text=True, cwd=stage / "app", check=False,
+            capture_output=True, text=True, cwd=stage / "app", check=False, timeout=900,
             env={k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "VIRTUAL_ENV"))},
         )  # fmt: skip
         if check_rc and result.returncode != 0:
@@ -73,13 +73,16 @@ def main(stage: Path) -> None:
         subprocess.run([str(pg / "initdb.exe"), "-D", str(data), "-U", "kasa_migrator",
                         f"--pwfile={pw}", "--encoding=UTF8", "--locale=C",
                         "--auth=scram-sha-256", "--no-instructions"],
-                       check=True, capture_output=True)  # fmt: skip
+                       check=True, capture_output=True, timeout=300)  # fmt: skip
+        # Never a pipe for the server's output (Windows: it would never close; see restore.py).
         subprocess.run([str(pg / "pg_ctl.exe"), "-D", str(data), "-l", str(tmp / "pg.log"), "-w",
                         "-o", f"-p {pg_port} -c listen_addresses=127.0.0.1", "start"],
-                       check=True, capture_output=True)  # fmt: skip
+                       check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=180)  # fmt: skip
         subprocess.run([str(pg / "psql.exe"), "-h", "127.0.0.1", "-p", str(pg_port), "-U",
                         "kasa_migrator", "-d", "postgres", "-q", "-c", "CREATE DATABASE kasa"],
-                       check=True, capture_output=True, env={**os.environ, "PGPASSWORD": owner})  # fmt: skip
+                       check=True, capture_output=True, timeout=120,
+                       env={**os.environ, "PGPASSWORD": owner})  # fmt: skip
         check(True, "bundled PostgreSQL initialises and starts")
 
         keys = subprocess.run(
@@ -88,7 +91,7 @@ def main(stage: Path) -> None:
              "i = x25519.Identity.generate()\n"
              "print(Fernet.generate_key().decode()); print(Fernet.generate_key().decode())\n"
              "print(str(i)); print(str(i.to_public()))"],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=True, timeout=120,
         ).stdout.split()  # fmt: skip
         fernet, auth_key, age_private, age_public = keys
         (tmp / "identity.txt").write_text(age_private + "\n")
@@ -159,7 +162,7 @@ def main(stage: Path) -> None:
              "try:\n    urllib.request.urlopen(req, context=ctx)\n"
              "except urllib.error.HTTPError as e:\n    print(e.code)",
              f"{url}/replika/api/pull", str(tmp / "tls" / "klinik.crt")],
-            capture_output=True, text=True, check=False, env=clean_env,
+            capture_output=True, text=True, check=False, env=clean_env, timeout=60,
         )  # fmt: skip
         check(api.stdout.strip() == "401", "laptop sync API is there and refuses without a token")
         pdf = subprocess.run(
@@ -170,6 +173,7 @@ def main(stage: Path) -> None:
              "data = pdf.build(meta, pdf.heading('Şeker İğne Ölçü', ['Çalışma']))\n"
              "print(data[:5].decode(), len(data))"],
             capture_output=True, text=True, check=False, cwd=stage / "app", env=clean_env,
+            timeout=120,
         )  # fmt: skip
         check(pdf.stdout.startswith("%PDF-"), "PDF reports render with the bundled font")
 
@@ -202,11 +206,12 @@ def main(stage: Path) -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
         subprocess.run([str(pg / "pg_ctl.exe"), "-D", str(data), "-m", "fast", "-w", "stop"],
-                       capture_output=True, check=False)  # fmt: skip
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False, timeout=90)  # fmt: skip
         import shutil
 
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]).resolve())

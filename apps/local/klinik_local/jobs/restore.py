@@ -45,6 +45,31 @@ def _run(*command: str) -> None:
         raise RuntimeError(f"{Path(command[0]).name} failed: {detail[-800:]}")
 
 
+def start_server(pg_ctl: str, data: Path, log_file: Path, port: str) -> None:
+    """Start a temporary PostgreSQL server.
+
+    Its output goes to a log file, never to a pipe: on Windows the server inherits the
+    pipe handles of pg_ctl and keeps them open, so waiting for the pipe would never end.
+    """
+    result = subprocess.run(
+        [pg_ctl, "-D", str(data), "-l", str(log_file), "-w", "-t", "120",
+         "-o", f"-p {port} -c listen_addresses=127.0.0.1", "start"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        check=False, timeout=180,
+    )  # fmt: skip
+    if result.returncode != 0:
+        tail = log_file.read_text(errors="replace")[-800:] if log_file.exists() else ""
+        raise RuntimeError(f"pg_ctl start failed: {tail}")
+
+
+def stop_server(pg_ctl: str, data: Path) -> None:
+    subprocess.run(
+        [pg_ctl, "-D", str(data), "-m", "fast", "-w", "-t", "60", "stop"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        check=False, timeout=90,
+    )  # fmt: skip
+
+
 async def restore_test(
     settings: JobSettings, identity_file: Path, backup_file: Path | None = None
 ) -> RestoreReport:
@@ -67,8 +92,7 @@ async def restore_test(
         port = str(free_port())
         _run(settings.tool("initdb"), "-D", str(data), "-U", "postgres", "--auth=trust",
              "--encoding=UTF8", "--no-instructions")  # fmt: skip
-        _run(settings.tool("pg_ctl"), "-D", str(data), "-l", str(work / "pg.log"), "-w",
-             "-o", f"-p {port} -c listen_addresses=127.0.0.1", "start")  # fmt: skip
+        start_server(settings.tool("pg_ctl"), data, work / "pg.log", port)
         try:
             base = ["-h", "127.0.0.1", "-p", port, "-U", "postgres"]
             _run(settings.tool("psql"), *base, "-d", "postgres", "-q", "-c", "CREATE DATABASE kasa")
@@ -80,11 +104,7 @@ async def restore_test(
                 f"postgresql://postgres@127.0.0.1:{port}/kasa", settings.fernet_keys
             )
         finally:
-            subprocess.run(
-                [settings.tool("pg_ctl"), "-D", str(data), "-m", "fast", "-w", "stop"],
-                capture_output=True,
-                check=False,
-            )
+            stop_server(settings.tool("pg_ctl"), data)
     outcome = "ok" if report.ok else "FAILED"
     await record(
         settings.backup_database_url,
