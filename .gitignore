@@ -23,7 +23,7 @@ htmlcov/
 backups/
 *.dump
 *.age
-
+nilklinik.md
 # editors / OS
 .idea/
 .vscode/
