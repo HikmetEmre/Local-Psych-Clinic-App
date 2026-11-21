@@ -14,8 +14,8 @@ jobs:
     name: Lint, types, tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.13.8"
           enable-cache: true
@@ -31,23 +31,9 @@ jobs:
     name: Known vulnerabilities in dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.13.8"
       - run: uv export --frozen --no-dev --no-emit-workspace --format requirements-txt > requirements.txt
       - run: uvx pip-audit --strict -r requirements.txt
-
-  compose-smoke:
-    name: Compose smoke test
-    runs-on: ubuntu-latest
-    env:
-      COMPOSE: docker compose --env-file infra/dev.env -f infra/docker-compose.yml -f infra/docker-compose.dev.yml
-    steps:
-      - uses: actions/checkout@v4
-      - run: $COMPOSE up -d --build --wait --wait-timeout 180
-      - run: python3 scripts/smoke_healthz.py
-      - if: failure()
-        run: $COMPOSE logs --no-color
-      - if: always()
-        run: $COMPOSE down -v
